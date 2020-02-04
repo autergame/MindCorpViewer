@@ -370,7 +370,7 @@ int main()
 	Animation tfanm;
 	openskn(&tfskn, "twistedfate2012.skn");
 	openskl(&tfskl, "twistedfate2012.skl");
-	openanm(&tfanm, "twistedfate_2012_laugh.anm");
+	openanm(&tfanm, "twistedfate_2012_attack1.anm");
 
 	uint32_t vertexBuffer;     
 	glGenBuffers(1, &vertexBuffer);
@@ -437,7 +437,7 @@ int main()
 		{
 			float Deltatime = float(GetTimeSinceStart() - Lastedtime);
 			Lastedtime = GetTimeSinceStart();
-			Time += Deltatime;
+			Time += Deltatime * .1f;
 
 			char tmp[64];
 			sprintf_s(tmp, "MindCorpLowUltraGameEngine - FPS: %1.0f", 1 / Deltatime);

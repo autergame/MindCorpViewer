@@ -18,7 +18,6 @@ struct Boneanm
 	using RotationFrame = Frame<glm::quat>;
 	using ScaleFrame = Frame<glm::vec3>;
 
-	std::string Name;
 	uint32_t Hash;
 
 	std::vector<TranslationFrame> Translation;
@@ -428,7 +427,112 @@ int openanm(Animation *myskin, const char* filename)
 	}
 	else if (Version == 5)
 	{
+		int32_t FileSize;
+		fread(&FileSize, sizeof(uint32_t), 1, fp); Offset += 4;
+		FileSize += 12;
 
+		Offset += 12;
+		fseek(fp, Offset, 0);
+
+		uint32_t BoneCount, FrameCount;
+		float FrameDelay;
+		fread(&BoneCount, sizeof(uint32_t), 1, fp); Offset += 4;
+		fread(&FrameCount, sizeof(uint32_t), 1, fp); Offset += 4;
+		fread(&FrameDelay, sizeof(float), 1, fp); Offset += 4;
+
+		myskin->Duration = (float)FrameCount * FrameDelay;
+		myskin->FPS = (float)FrameCount / myskin->Duration;
+
+		int32_t TranslationFileOffset, RotationFileOffset, FrameFileOffset, HashesOffset;
+
+		fread(&HashesOffset, sizeof(uint32_t), 1, fp); Offset += 4;
+		Offset += 8;
+		fseek(fp, Offset, 0);
+		fread(&TranslationFileOffset, sizeof(uint32_t), 1, fp); Offset += 4;
+		fread(&RotationFileOffset, sizeof(uint32_t), 1, fp); Offset += 4;
+		fread(&FrameFileOffset, sizeof(uint32_t), 1, fp); Offset += 4;
+
+		TranslationFileOffset += 12;
+		RotationFileOffset += 12;
+		FrameFileOffset += 12;
+		HashesOffset += 12;
+
+		std::vector<glm::vec3> Translations;
+
+		size_t TranslationCount = (size_t)(RotationFileOffset - TranslationFileOffset) / (sizeof(float) * 3);
+
+		Offset = TranslationFileOffset;
+		fseek(fp, Offset, 0);
+
+		for (size_t i = 0; i < TranslationCount; ++i)
+		{
+			glm::vec3 translationEntry;
+			fread(&translationEntry, sizeof(uint8_t), 12, fp); Offset += 12;
+			Translations.push_back(translationEntry);
+		}
+
+		std::vector<std::bitset<48>> RotationEntries;
+
+		size_t RotationCount = (size_t)(HashesOffset - RotationFileOffset) / 6;
+
+		Offset = RotationFileOffset;
+		fseek(fp, Offset, 0);
+
+		for (size_t i = 0; i < RotationCount; ++i)
+		{
+			std::bitset<48> RotationEntry;
+			fread(&RotationEntry, sizeof(uint8_t), 6, fp); Offset += 6;
+			RotationEntries.push_back(RotationEntry);
+		}
+
+		std::vector<uint32_t> HashEntry;
+
+		size_t HashCount = (size_t)(FrameFileOffset - HashesOffset) / sizeof(uint32_t);
+
+		Offset = HashesOffset;
+		fseek(fp, Offset, 0);
+
+		for (size_t i = 0; i < HashCount; ++i)
+		{
+			uint32_t hashEntry;
+			fread(&hashEntry, sizeof(uint32_t), 1, fp); Offset += 4;
+			HashEntry.push_back(hashEntry);
+		}
+
+		myskin->Bones.resize(BoneCount);
+
+		Offset = FrameFileOffset;
+		fseek(fp, Offset, 0);
+
+		float CurrentTime = 0.0f;
+
+		for (size_t i = 0; i < FrameCount; ++i)
+		{
+			for (size_t j = 0; j < BoneCount; ++j)
+			{
+				myskin->Bones[j].Hash = HashEntry[j];
+
+				uint16_t TranslationIndex, RotationIndex, ScaleIndex;
+				fread(&TranslationIndex, sizeof(uint16_t), 1, fp); Offset += 2;
+				fread(&ScaleIndex, sizeof(uint16_t), 1, fp); Offset += 2;
+				fread(&RotationIndex, sizeof(uint16_t), 1, fp); Offset += 2;
+
+				myskin->Bones[j].Translation.push_back(Boneanm::TranslationFrame(CurrentTime, Translations[TranslationIndex]));
+
+				std::bitset<48> mask = 0x7FFF;
+				uint16_t flag = (uint16_t)(RotationEntries[RotationIndex] >> 45).to_ulong();
+				uint16_t sx = (uint16_t)(RotationEntries[RotationIndex] >> 30 & mask).to_ulong();
+				uint16_t sy = (uint16_t)(RotationEntries[RotationIndex] >> 15 & mask).to_ulong();
+				uint16_t sz = (uint16_t)(RotationEntries[RotationIndex] & mask).to_ulong();
+
+				glm::quat RotationEntry = UncompressQuaternion(flag, sx, sy, sz);
+
+				myskin->Bones[j].Rotation.push_back(Boneanm::RotationFrame(CurrentTime, RotationEntry));
+				myskin->Bones[j].Scale.push_back(Boneanm::ScaleFrame(CurrentTime, Translations[ScaleIndex]));
+			}
+
+			CurrentTime += FrameDelay;
+		}
 	}
 	else
 	{
