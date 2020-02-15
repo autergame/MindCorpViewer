@@ -23,22 +23,34 @@ enum Type : uint32_t
 	Version2 = 0x22FD4FC3
 };
 
-typedef struct Skeleton_
+class Skeleton
 {
+public:
 	Type Type;
 	uint32_t Version;
 	std::vector<Bone> Bones;
 	std::vector<uint32_t> BoneIndices;
-} Skeleton;
+};
 
-void RecursiveInvertGlobalMatrices(const glm::mat4& Parent, Bone& Bone)
+bool removechar(char pchar)
 {
-	glm::mat4 Global = Parent * Bone.LocalMatrix;
-	Bone.GlobalMatrix = Global;
-	Bone.InverseGlobalMatrix = glm::inverse(Global);
+	if ((pchar >= '0' && pchar <= '9') || 
+		(pchar >= 'A' && pchar <= 'Z') || 
+		(pchar >= 'a' && pchar <= 'z') || 
+		pchar == '_')
+		return false;
+	else
+		return true;
+}
 
-	for (auto Child : Bone.Children)
-		RecursiveInvertGlobalMatrices(Global, *Child);
+void RecursiveInvertGlobalMatrices(glm::mat4 Parent, Bone* Bone)
+{
+	auto Global = Parent * Bone->LocalMatrix;
+	Bone->GlobalMatrix = Global;
+	Bone->InverseGlobalMatrix = glm::inverse(Global);
+
+	for (uint32_t i = 0; i < Bone->Children.size(); i++)
+		RecursiveInvertGlobalMatrices(Global, Bone->Children[i]);
 }
 
 uint32_t StringToHash(const std::string& s)
@@ -154,7 +166,7 @@ int openskl(Skeleton *myskin, const char* filename)
 		fseek(fp, Offset, 0);
 
 		myskin->Bones.resize(BoneCount);
-		for (int i = 0; i < BoneCount; i++)
+		for (int i = 0; i < BoneCount; ++i)
 		{
 			Bone& Bone = myskin->Bones[i];
 
@@ -222,23 +234,22 @@ int openskl(Skeleton *myskin, const char* filename)
 		fseek(fp, Offset, 0);
 
 		size_t NameChunkSize = 32 * BoneCount;
-		std::vector<uint8_t> t_Start(NameChunkSize);
-		memset(t_Start.data(), 0, NameChunkSize);
-		fread(t_Start.data(), sizeof(char), NameChunkSize, fp);
-		char* t_Pointer = (char*)t_Start.data();
+		std::vector<uint8_t> Start(NameChunkSize);
+		memset(Start.data(), 0, NameChunkSize);
+		fread(Start.data(), sizeof(char), NameChunkSize, fp);
+		char* Pointer = (char*)Start.data();
 		for (int i = 0; i < BoneCount; ++i)
 		{
-			myskin->Bones[i].Name = t_Pointer;
-			size_t t_NameLength = strlen(t_Pointer);
-			std::string t_Name = t_Pointer;
-			t_Pointer += t_NameLength;
-			while (*t_Pointer == 0) t_Pointer++;
+			myskin->Bones[i].Name = Pointer;
+			Pointer += strlen(Pointer);
+			while (removechar(*Pointer)) 
+				Pointer++;
 		}
 
-		for (Bone& Bone : myskin->Bones)
+		for (size_t i = 0; i < myskin->Bones.size(); i++)
 		{
-			if (Bone.ParentID != -1) continue;
-			RecursiveInvertGlobalMatrices(glm::identity<glm::mat4>(), Bone);
+			if (myskin->Bones[i].ParentID != -1) continue;
+			RecursiveInvertGlobalMatrices(glm::identity<glm::mat4>(), &myskin->Bones[i]);
 		}
 	}
 	else
@@ -250,4 +261,15 @@ int openskl(Skeleton *myskin, const char* filename)
 	printf("skl version %d was succesfully loaded: Type: %d Bones: %u BoneIndices: %d\n",
 		myskin->Version, myskin->Type, myskin->Bones.size(), myskin->BoneIndices.size());
 	return 0;
+}
+
+void fixallthings(Skin* skn, Skeleton* skl)
+{
+	for (uint32_t i = 0; i < skn->BoneIndices.size(); i++)
+	{
+		skn->BoneIndices[i][0] = skl->BoneIndices[skn->BoneIndices[i][0]];
+		skn->BoneIndices[i][1] = skl->BoneIndices[skn->BoneIndices[i][1]];
+		skn->BoneIndices[i][2] = skl->BoneIndices[skn->BoneIndices[i][2]];
+		skn->BoneIndices[i][3] = skl->BoneIndices[skn->BoneIndices[i][3]];
+	}
 }

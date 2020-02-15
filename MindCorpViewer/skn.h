@@ -23,29 +23,22 @@ struct Mesh
 {
 	std::string Name;
 	uint32_t Hash;
-	size_t VertexCount;
-
-	glm::vec3* Positions;
-	glm::vec2* UVs;
-	glm::vec4* Tangents;
-	glm::vec4* Weights;
-	glm::vec4* BoneIndices;
 
 	uint16_t* Indices;
 	size_t IndexCount;
 };
 
-struct Skin
+class Skin
 {
+public:
 	uint16_t Major;
 	uint16_t Minor;
-
+	glm::vec3 center;
 	std::vector<glm::vec3> Positions;
 	std::vector<glm::vec2> UVs;
-	std::vector<glm::vec4> Tangents;
 	std::vector<glm::vec4> Weights;
-	std::vector<uint16_t> Indices;
 	std::vector<glm::vec4> BoneIndices;
+	std::vector<uint16_t> Indices;
 	std::vector<Mesh> Meshes;
 };
 
@@ -99,6 +92,9 @@ int openskn(Skin *myskin, const char* filename)
 	fread(&IndexCount, sizeof(uint32_t), 1, fp); Offset += 4;
 	fread(&VertexCount, sizeof(uint32_t), 1, fp); Offset += 4;
 
+	glm::vec3 BBMin = glm::vec3(6e6);
+	glm::vec3 BBMax = glm::vec3(-6e6);
+
 	uint32_t HasTangents = 0;
 	if (myskin->Major == 4)
 	{
@@ -106,9 +102,21 @@ int openskn(Skin *myskin, const char* filename)
 		fread(&VertexSize, sizeof(uint32_t), 1, fp); Offset += 4;
 		fread(&HasTangents, sizeof(uint32_t), 1, fp); Offset += 4;
 
-		Offset += 40;
+		fread(&BBMin.x, sizeof(float), 1, fp); Offset += 4;
+		fread(&BBMin.y, sizeof(float), 1, fp); Offset += 4;
+		fread(&BBMin.z, sizeof(float), 1, fp); Offset += 4;
+
+		fread(&BBMax.x, sizeof(float), 1, fp); Offset += 4;
+		fread(&BBMax.y, sizeof(float), 1, fp); Offset += 4;
+		fread(&BBMax.z, sizeof(float), 1, fp); Offset += 4;
+
+		Offset += 16;
 		fseek(fp, Offset, 0);
 	}
+
+	myskin->center.x = (BBMax.x + BBMin.x) / 2;
+	myskin->center.y = (BBMax.y + BBMin.y) / 2;
+	myskin->center.z = (BBMax.z + BBMin.z) / 2;
 
 	myskin->Indices.resize(IndexCount);
 	for (uint32_t i = 0; i < IndexCount; i++)
@@ -119,7 +127,6 @@ int openskn(Skin *myskin, const char* filename)
 
 	myskin->Positions.resize(VertexCount);
 	myskin->UVs.resize(VertexCount);
-	myskin->Tangents.resize(VertexCount);
 	myskin->Weights.resize(VertexCount);
 	myskin->BoneIndices.resize(VertexCount);
 	for (uint32_t i = 0; i < VertexCount; i++)
@@ -136,16 +143,16 @@ int openskn(Skin *myskin, const char* filename)
 			Offset += 1;
 		}
 
-		fread(&myskin->Weights[i][0], sizeof(float), 1, fp); Offset += 4;
-		fread(&myskin->Weights[i][1], sizeof(float), 1, fp); Offset += 4;
-		fread(&myskin->Weights[i][2], sizeof(float), 1, fp); Offset += 4;
-		fread(&myskin->Weights[i][3], sizeof(float), 1, fp); Offset += 4;
+		fread(&myskin->Weights[i].x, sizeof(float), 1, fp); Offset += 4;
+		fread(&myskin->Weights[i].y, sizeof(float), 1, fp); Offset += 4;
+		fread(&myskin->Weights[i].z, sizeof(float), 1, fp); Offset += 4;
+		fread(&myskin->Weights[i].w, sizeof(float), 1, fp); Offset += 4;
 
 		Offset += 12;
 		fseek(fp, Offset, 0);
 
-		fread(&myskin->UVs[i][0], sizeof(float), 1, fp); Offset += 4;
-		fread(&myskin->UVs[i][1], sizeof(float), 1, fp); Offset += 4;
+		fread(&myskin->UVs[i].x, sizeof(float), 1, fp); Offset += 4;
+		fread(&myskin->UVs[i].y, sizeof(float), 1, fp); Offset += 4;
 
 		if (HasTangents)
 		{
@@ -153,7 +160,7 @@ int openskn(Skin *myskin, const char* filename)
 			fseek(fp, Offset, 0);
 		}
 
-		float WeightError = fabsf(myskin->Weights[i][0] + myskin->Weights[i][1] + myskin->Weights[i][2] + myskin->Weights[i][3] - 1.0f);
+		float WeightError = fabsf(myskin->Weights[i].x + myskin->Weights[i].y + myskin->Weights[i].z + myskin->Weights[i].w - 1.0f);
 		if (WeightError > 0.02f)
 		{
 			printf("WeightError\n");
@@ -164,15 +171,10 @@ int openskn(Skin *myskin, const char* filename)
 	myskin->Meshes.resize(SubMeshHeaderCount);
 	for (uint32_t i = 0; i < SubMeshHeaderCount; i++)
 	{
+		myskin->Meshes[i].Name = SubMeshHeaders[i].Name;
 		myskin->Meshes[i].Hash = FNV1Hash(SubMeshHeaders[i].Name);
-		myskin->Meshes[i].VertexCount = SubMeshHeaders[i].VertexCount;
-		myskin->Meshes[i].IndexCount = SubMeshHeaders[i].IndexCount;
 
-		myskin->Meshes[i].Positions = &myskin->Positions[SubMeshHeaders[i].VertexOffset];
-		myskin->Meshes[i].UVs = &myskin->UVs[SubMeshHeaders[i].VertexOffset];
-		myskin->Meshes[i].Tangents = &myskin->Tangents[SubMeshHeaders[i].VertexOffset];
-		myskin->Meshes[i].Weights = &myskin->Weights[SubMeshHeaders[i].VertexOffset];
-		myskin->Meshes[i].BoneIndices = &myskin->BoneIndices[SubMeshHeaders[i].VertexOffset];
+		myskin->Meshes[i].IndexCount = SubMeshHeaders[i].IndexCount;
 		myskin->Meshes[i].Indices = &myskin->Indices[SubMeshHeaders[i].IndexOffset];
 	}
 

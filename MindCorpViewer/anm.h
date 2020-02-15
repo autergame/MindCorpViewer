@@ -25,8 +25,9 @@ struct Boneanm
 	std::vector<ScaleFrame> Scale;
 };
 
-struct Animation
+class Animation
 {
+public:
 	float FPS, Duration;
 	std::vector<Boneanm> Bones;
 };
@@ -182,7 +183,7 @@ int openanm(Animation *myskin, const char* filename)
 
 		fseek(fp, HashesOffset, 0);
 		std::vector<uint32_t> HashEntries;
-		for (uint32_t i = 0; i < BoneCount; i++)
+		for (uint32_t i = 0; i < BoneCount; ++i)
 		{
 			uint32_t Hash;
 			fread(&Hash, sizeof(uint32_t), 1, fp);
@@ -196,7 +197,7 @@ int openanm(Animation *myskin, const char* filename)
 		CompressedTranslations.resize(BoneCount);
 		CompressedScales.resize(BoneCount);
 
-		for (int i = 0; i < EntryCount; i++)
+		for (int i = 0; i < EntryCount; ++i)
 		{
 			enum FrameDataType : uint8_t
 			{
@@ -301,7 +302,7 @@ int openanm(Animation *myskin, const char* filename)
 
 		char Name[32];
 		myskin->Bones.resize(BoneCount);
-		for (uint32_t i = 0; i < BoneCount; i++)
+		for (uint32_t i = 0; i < BoneCount; ++i)
 		{
 			fread(Name, sizeof(char), 32, fp);
 			myskin->Bones[i].Hash = StringToHash(Name);
@@ -314,7 +315,7 @@ int openanm(Animation *myskin, const char* filename)
 			myskin->Bones[i].Scale.resize(FrameCount);
 
 			float cumulativeFrameDelay = 0.0f;
-			for (uint32_t j = 0; j < FrameCount; j++)
+			for (uint32_t j = 0; j < FrameCount; ++j)
 			{
 				myskin->Bones[i].Rotation[j].Time = cumulativeFrameDelay;
 				myskin->Bones[i].Translation[j].Time = cumulativeFrameDelay;
@@ -388,9 +389,9 @@ int openanm(Animation *myskin, const char* filename)
 		fseek(fp, Offset, 0);
 
 		std::map<uint32_t, std::vector<FrameIndices>> BoneMap;
-		for (uint32_t i = 0; i < BoneCount; i++)
+		for (uint32_t i = 0; i < BoneCount; ++i)
 		{
-			for (uint32_t j = 0; j < FrameCount; j++)
+			for (uint32_t j = 0; j < FrameCount;++ j)
 			{
 				uint32_t BoneHash;
 				FrameIndices FrameIndexData;
@@ -553,17 +554,17 @@ struct BoneFrameIndexCache
 
 Bone* GetBones(Skeleton *skl, uint32_t NameHash)
 {
-	for (auto& Bone : skl->Bones)
-		if (Bone.Hash == NameHash)
-			return &Bone;
+	for (size_t i = 0; i < skl->Bones.size(); i++)
+		if (skl->Bones[i].Hash == NameHash)
+			return &skl->Bones[i];
 	return nullptr;
 }
 
 Boneanm* GetBonea(Animation *anm, uint32_t NameHash)
 {
-	for (auto& Bone : anm->Bones)
-		if (Bone.Hash == NameHash)
-			return &Bone;
+	for (size_t i = 0; i < anm->Bones.size(); i++)
+		if (anm->Bones[i].Hash == NameHash)
+			return &anm->Bones[i];
 	return nullptr;
 }
 
@@ -599,7 +600,7 @@ glm::quat Interpolate(glm::quat Low, glm::quat High, float Progress)
 }
 
 template<typename T>
-T FindNearestTime(std::vector<Boneanm::Frame<T>>& Vector, float Time, size_t& Index)
+T FindNearestTime(const std::vector<Boneanm::Frame<T>>& Vector, float Time, size_t& Index)
 {
 	auto Min = Vector[0];
 	auto Max = Vector.back();
@@ -635,35 +636,33 @@ T FindNearestTime(std::vector<Boneanm::Frame<T>>& Vector, float Time, size_t& In
 	return Interpolate(Min.FrameData, Max.FrameData, LerpValue);
 }
 
-void SetupHierarchy(std::vector<glm::mat4>& Bones, Bone& SkeletonBone, const glm::mat4& Parent, float Time, std::vector<BoneFrameIndexCache>& CurrentFrame, Animation anm, Skeleton skl)
+void SetupHierarchy(std::vector<glm::mat4>* Bones, Bone* SkeletonBone, glm::mat4 Parent, float Time, std::vector<BoneFrameIndexCache>* CurrentFrame, Animation* anm)
 {
-	glm::mat4 GlobalTransform = Parent; //1ms
+	glm::mat4 GlobalTransform = Parent; 
 
-	auto* AnimBone = GetBonea(&anm, SkeletonBone.Hash); //1ms
+	Boneanm* AnimBone = GetBonea(anm, SkeletonBone->Hash); 
 	if (AnimBone != nullptr)
 	{
-		glm::vec3 Translation = FindNearestTime(AnimBone->Translation, Time, CurrentFrame[SkeletonBone.ID].Translation); //1ms
-		glm::quat Rotation = FindNearestTime(AnimBone->Rotation, Time, CurrentFrame[SkeletonBone.ID].Rotation); //1ms
-		glm::vec3 Scale = FindNearestTime(AnimBone->Scale, Time, CurrentFrame[SkeletonBone.ID].Scale); //1ms
-		GlobalTransform = Parent * glm::translate(Translation) * glm::mat4_cast(Rotation) * glm::scale(Scale); //1ms
+		glm::vec3 Translation = FindNearestTime(AnimBone->Translation, Time, CurrentFrame->at(SkeletonBone->ID).Translation);
+		glm::quat Rotation = FindNearestTime(AnimBone->Rotation, Time, CurrentFrame->at(SkeletonBone->ID).Rotation);
+		glm::vec3 Scale = FindNearestTime(AnimBone->Scale, Time, CurrentFrame->at(SkeletonBone->ID).Scale);
+		GlobalTransform = Parent * glm::translate(glm::mat4(1.f), Translation) * glm::mat4_cast(Rotation) * glm::scale(glm::mat4(1.f), Scale);
 	}
 
-	Bones[SkeletonBone.ID] = GlobalTransform * SkeletonBone.InverseGlobalMatrix; //1ms
+	Bones->at(SkeletonBone->ID) = GlobalTransform * SkeletonBone->InverseGlobalMatrix; 
 
-	for (auto& Child : SkeletonBone.Children) //1000ms
-		SetupHierarchy(Bones, *Child, GlobalTransform, Time, CurrentFrame, anm, skl);
+	for (uint32_t i = 0; i < SkeletonBone->Children.size(); i++)
+		SetupHierarchy(Bones, SkeletonBone->Children[i], GlobalTransform, Time, CurrentFrame, anm);
 };
 
-void SetupAnimation(std::vector<glm::mat4>& BoneTransforms, float Time, Animation anm, Skeleton skl)
+void SetupAnimation(std::vector<glm::mat4>* BoneTransforms, float Time, Animation *anm, Skeleton *skl)
 {
-	std::vector<BoneFrameIndexCache> CurrentFrame; //1ms
-	CurrentFrame.resize(skl.Bones.size()); //1ms
-	for (size_t i = 0; i < anm.Bones.size(); i++)
+	std::vector<BoneFrameIndexCache> CurrentFrame; 
+	CurrentFrame.resize(skl->Bones.size()); 
+	for (size_t i = 0; i < anm->Bones.size(); i++)
 	{
-		auto* SkellyBone = GetBones(&skl, anm.Bones[i].Hash); //1ms
-
-		if (SkellyBone == nullptr || SkellyBone->Parent != nullptr) continue; //1ms
-
-		SetupHierarchy(BoneTransforms, *SkellyBone, glm::identity<glm::mat4>(), Time, CurrentFrame, anm, skl); //1000ms - 2000ms
+		Bone* SkellyBone = GetBones(skl, anm->Bones[i].Hash); 
+		if (SkellyBone == nullptr || SkellyBone->Parent != nullptr) continue;
+		SetupHierarchy(BoneTransforms, SkellyBone, glm::identity<glm::mat4>(), Time, &CurrentFrame, anm);
 	}
 }
