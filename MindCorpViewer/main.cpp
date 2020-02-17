@@ -1,17 +1,18 @@
-#include <stdio.h>
-#include <string>
-#include <ctype.h>
+#include <glad/glad.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtx/transform.hpp>
 #include <glm/gtx/quaternion.hpp>
 #include <glm/gtx/compatibility.hpp>
-#include <glad/glad.h>
-#include <cstdint>
+#include <imgui/imgui.h>
+#include <imgui/imgui_impl_win32.h>
+#include <imgui/imgui_impl_opengl3.h>
+#include <imgui/imgui_internal.h>
+#include <algorithm>
 #include <windows.h>
 #include <bitset>
+#include <string>
 #include <vector>
-#include <time.h>
 #include <map>
 #include "skn.h"
 #include "skl.h"
@@ -82,9 +83,9 @@ GLuint loadDDS(const char* filename)
 	unsigned int BlockSize = (Format == 0x83F1) ? 8 : 16;
 	unsigned int Height = Header.height;
 	unsigned int Width = Header.width;
-	for (unsigned int i = 0; i < max(1u, Header.mipMapCount); i++)
+	for (unsigned int i = 0; i < std::max(1u, Header.mipMapCount); i++)
 	{
-		unsigned int Size = max(1u, ((Width + 3) / 4) * ((Height + 3) / 4)) * BlockSize;
+		unsigned int Size = std::max(1u, ((Width + 3) / 4) * ((Height + 3) / 4)) * BlockSize;
 		uint8_t* Buffer = (uint8_t*)calloc(Size, sizeof(uint8_t));
 		fread(Buffer, sizeof(uint8_t), Size, fp);
 
@@ -198,6 +199,20 @@ std::vector<std::string> ListDirectoryContents(const char *sDir)
 	return paths;
 }
 
+static auto vector_getter = [](void* vec, int idx, const char** out_text)
+{
+	auto& vector = *static_cast<std::vector<std::string>*>(vec);
+	if (idx < 0 || idx >= static_cast<int>(vector.size())) { return false; }
+	*out_text = vector.at(idx).c_str();
+	return true;
+};
+
+bool ListBox(const char* label, int* currIndex, std::vector<std::string>& values)
+{
+	if (values.empty()) { return false; }
+	return ImGui::ListBox(label, currIndex, vector_getter, static_cast<void*>(&values), values.size());
+}
+
 glm::mat4 computeMatricesFromInputs(glm::vec3 &trans, float &yaw, float &pitch, glm::vec3 center)
 {
 	static float lastx = mousex;
@@ -205,7 +220,7 @@ glm::mat4 computeMatricesFromInputs(glm::vec3 &trans, float &yaw, float &pitch, 
 
 	if (state == 1)
 	{
-		if (mx > 0 && mx < nwidth && my > 0 && my < nheight)
+		if (mx > 0 && mx < nwidth && my > 0 && my < nheight && !ImGui::IsAnyWindowHovered())
 		{
 			if (mousex != lastx)
 				yaw += mousex * .6f;
@@ -228,7 +243,7 @@ glm::mat4 computeMatricesFromInputs(glm::vec3 &trans, float &yaw, float &pitch, 
 
 	if (state == 2)
 	{
-		if (mx > 0 && mx < nwidth && my > 0 && my < nheight)
+		if (mx > 0 && mx < nwidth && my > 0 && my < nheight && !ImGui::IsAnyWindowHovered())
 		{
 			if (mousex != lastx)
 			{
@@ -253,8 +268,12 @@ void reshape(int width, int height)
 	nwidth = width; nheight = height;
 }
 
+extern LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 LRESULT WINAPI WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
+	if (ImGui_ImplWin32_WndProcHandler(hWnd, uMsg, wParam, lParam))
+		return true;
+
 	int value;
 	switch (uMsg) 
 	{
@@ -303,8 +322,8 @@ LRESULT WINAPI WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			omy = my;
 			mx = (int)(short)LOWORD(lParam);
 			my = (int)(short)HIWORD(lParam);
-			mousex = mx - omx;
-			mousey = my - omy;
+			mousex = float(mx - omx);
+			mousey = float(my - omy);
 			break;
 	}
 	return DefWindowProc(hWnd, uMsg, wParam, lParam);
@@ -318,7 +337,7 @@ int main()
 	MSG msg;
 	WNDCLASS wc;
 	PIXELFORMATDESCRIPTOR pfd;
-	int width = 800, height = 600;
+	int width = 1024, height = 600;
 
 	static HINSTANCE hInstance = GetModuleHandle(NULL);
 	wc.style = CS_OWNDC;
@@ -390,6 +409,18 @@ int main()
 	glDepthFunc(GL_LESS);
 	glClearColor(.5f, .5f, .5f, 1.f);
 
+	IMGUI_CHECKVERSION();
+	ImGui::CreateContext();
+	ImGuiIO& io = ImGui::GetIO(); (void)io;
+
+	ImGui_ImplWin32_Init(hWnd);
+
+	const char* glsl_version = "#version 130";
+	ImGui_ImplOpenGL3_Init(glsl_version);
+
+	ImGui::StyleColorsDark();
+	io.IniFilename = NULL;
+
 	GLuint shaderidone = 0, shaderidtwo = 0;
 	useshader(shaderidone, "map.vert", "map.frag");
 	useshader(shaderidtwo, "model.vert", "model.frag");
@@ -416,11 +447,11 @@ int main()
 	Skeleton myskl;
 	openskn(&myskn, "yasuo.skn");
 	openskl(&myskl, "yasuo.skl");
-	fixallthings(&myskn, &myskl);
+	fixbone(&myskn, &myskl);
 
 	std::vector<Animation> myanm;
 	std::vector<std::string> paths = ListDirectoryContents("animations");
-	for (int i = 0; i < paths.size(); i++)
+	for (uint32_t i = 0; i < paths.size(); i++)
 	{
 		Animation temp;
 		openanm(&temp, paths[i].c_str());
@@ -501,18 +532,22 @@ int main()
 		BoneTransforms[i] = glm::identity<glm::mat4>();
 
 	int nowanm = 0;
+	float Time = 0.f;
+	float speedanm = 1.f;
+	bool playanm = false;
+	bool jumpnext = false;
 	glm::vec3 trans(1.f);
 	float yaw = 90.f, pitch = 70.f;
-	float Time = 0;
 	double Lastedtime = 0;
 	ShowWindow(hWnd, TRUE);
 	SetFocus(hWnd);
 	while (active)
 	{
-		while (PeekMessage(&msg, hWnd, 0, 0, PM_REMOVE))
+		if (PeekMessage(&msg, NULL, 0U, 0U, PM_REMOVE))
 		{
 			TranslateMessage(&msg);
 			DispatchMessage(&msg);
+			continue;
 		}
 
 		float Deltatime = float(GetTimeSinceStart() - Lastedtime);
@@ -522,11 +557,25 @@ int main()
 		sprintf_s(tmp, "MindCorpLowUltraGameEngine - FPS: %1.0f", 1 / Deltatime);
 		SetWindowText(hWnd, tmp);
 
-		Time += Deltatime;
+		ImGui_ImplOpenGL3_NewFrame();
+		ImGui_ImplWin32_NewFrame();
+		ImGui::NewFrame();
+
+		ImGui::Begin("MainWindow", 0, ImGuiWindowFlags_AlwaysAutoResize);
+		ImGui::Checkbox("Play/Stop", &playanm);
+		ImGui::Checkbox("Jump To Next", &jumpnext);
+		ImGui::SliderFloat("Animation Speed", &speedanm, 0.f, 10.f);
+		ImGui::SliderFloat("Animation Time", &Time, 0.f, myanm[nowanm].Duration);
+		ListBox("Animation List", &nowanm, paths);
+		ImGui::End();
+
+		if (playanm)
+			Time += Deltatime * speedanm;
 		if (Time > myanm[nowanm].Duration)
 		{
 			Time = 0;
-			nowanm += 1;
+			if(jumpnext)
+				nowanm += 1;
 			if (nowanm == myanm.size())
 				nowanm = 0;
 		}
@@ -561,8 +610,15 @@ int main()
 			glDrawElements(GL_TRIANGLES, myskn.Meshes[i].IndexCount, GL_UNSIGNED_SHORT, 0);
 		}
 
+		ImGui::Render();
+		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 		SwapBuffers(hDC);
 	}
+
+	ImGui_ImplOpenGL3_Shutdown();
+	wglDeleteContext(hRC);
+	ImGui::DestroyContext();
+	ImGui_ImplWin32_Shutdown();
 
 	wglMakeCurrent(NULL, NULL);
 	wglDeleteContext(hRC);

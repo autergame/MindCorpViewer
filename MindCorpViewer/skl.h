@@ -263,13 +263,13 @@ int openskl(Skeleton *myskin, const char* filename)
 	return 0;
 }
 
-void fixallthings(Skin* skn, Skeleton* skl)
+void fixbone(Skin* skn, Skeleton* skl)
 {
 	for (uint32_t i = 0; i < skn->BoneIndices.size(); i++)
 	{
-		skn->BoneIndices[i][0] = skl->BoneIndices[skn->BoneIndices[i][0]];
-		skn->BoneIndices[i][1] = skl->BoneIndices[skn->BoneIndices[i][1]];
-		skn->BoneIndices[i][2] = skl->BoneIndices[skn->BoneIndices[i][2]];
-		skn->BoneIndices[i][3] = skl->BoneIndices[skn->BoneIndices[i][3]];
+		skn->BoneIndices[i][0] = (float)skl->BoneIndices[skn->BoneIndices[i][0]];
+		skn->BoneIndices[i][1] = (float)skl->BoneIndices[skn->BoneIndices[i][1]];
+		skn->BoneIndices[i][2] = (float)skl->BoneIndices[skn->BoneIndices[i][2]];
+		skn->BoneIndices[i][3] = (float)skl->BoneIndices[skn->BoneIndices[i][3]];
 	}
 }

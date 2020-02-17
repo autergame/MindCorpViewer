@@ -1,2 +1,25 @@
 ﻿  main.cpp
+c:\users\autergame\documents\visual studio 2017\projects\mindcorpviewer\mindcorpviewer\skl.h(270): warning C4244: 'argument': conversion from 'T' to 'const unsigned int', possible loss of data
+          with
+          [
+              T=float
+          ]
+c:\users\autergame\documents\visual studio 2017\projects\mindcorpviewer\mindcorpviewer\skl.h(271): warning C4244: 'argument': conversion from 'T' to 'const unsigned int', possible loss of data
+          with
+          [
+              T=float
+          ]
+c:\users\autergame\documents\visual studio 2017\projects\mindcorpviewer\mindcorpviewer\skl.h(272): warning C4244: 'argument': conversion from 'T' to 'const unsigned int', possible loss of data
+          with
+          [
+              T=float
+          ]
+c:\users\autergame\documents\visual studio 2017\projects\mindcorpviewer\mindcorpviewer\skl.h(273): warning C4244: 'argument': conversion from 'T' to 'const unsigned int', possible loss of data
+          with
+          [
+              T=float
+          ]
+  glad.obj : MSIL .netmodule or module compiled with /GL found; restarting link with /LTCG; add /LTCG to the link command line to improve linker performance
+  Generating code
+  Finished generating code
   MindCorpViewer.vcxproj -> C:\Users\autergame\Documents\Visual Studio 2017\Projects\MindCorpViewer\Release\MindCorpViewer.exe
