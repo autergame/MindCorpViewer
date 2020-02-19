@@ -17,7 +17,6 @@
 #include "skn.h"
 #include "skl.h"
 #include "anm.h"
-#include "dds.h"
 
 HDC hDC;
 HWND hWnd;
@@ -36,6 +35,36 @@ double GetTimeSinceStart()
 
 	return static_cast<float>(t_End.QuadPart - Starte.QuadPart) / Frequencye.QuadPart;
 }
+
+struct DDS_PIXELFORMAT
+{
+	uint32_t    size;
+	uint32_t    flags;
+	uint32_t    fourCC;
+	uint32_t    RGBBitCount;
+	uint32_t    RBitMask;
+	uint32_t    GBitMask;
+	uint32_t    BBitMask;
+	uint32_t    ABitMask;
+};
+
+struct DDS_HEADER
+{
+	uint32_t        size;
+	uint32_t        flags;
+	uint32_t        height;
+	uint32_t        width;
+	uint32_t        pitchOrLinearSize;
+	uint32_t        depth;
+	uint32_t        mipMapCount;
+	uint32_t        reserved1[11];
+	DDS_PIXELFORMAT ddspf;
+	uint32_t        caps;
+	uint32_t        caps2;
+	uint32_t        caps3;
+	uint32_t        caps4;
+	uint32_t        reserved2;
+};
 
 GLuint loadDDS(const char* filename)
 {
@@ -165,7 +194,7 @@ void *GetAnyGLFuncAddress(const char *name)
 	return p;
 }
 
-std::vector<std::string> ListDirectoryContents(const char *sDir)
+std::vector<std::string> ListDirectoryContents(const char *sDir, bool anm)
 {
 	WIN32_FIND_DATA fdFile;
 	HANDLE hFind = NULL;
@@ -173,24 +202,41 @@ std::vector<std::string> ListDirectoryContents(const char *sDir)
 	char sPath[2048];
 	std::vector<std::string> paths;
 
-	sprintf_s(sPath, 2048, "%s\\*.*", sDir);
-
-	if ((hFind = FindFirstFile(sPath, &fdFile)) == INVALID_HANDLE_VALUE)
+	if (anm)
 	{
-		printf("Path not found: [%s]\n", sDir);
-		return paths;
+		sprintf_s(sPath, 2048, "%s\\*.anm", sDir);
+		if ((hFind = FindFirstFile(sPath, &fdFile)) == INVALID_HANDLE_VALUE)
+		{
+			printf("Path not found: [%s]\n", sPath);
+			return paths;
+		}
+	}
+	else
+	{
+		sprintf_s(sPath, 2048, "*.dds");
+		if ((hFind = FindFirstFile(sPath, &fdFile)) == INVALID_HANDLE_VALUE)
+		{
+			printf("File not found: [%s]\n", sPath);
+			return paths;
+		}
 	}
 
 	do
 	{
-		if (strcmp(fdFile.cFileName, ".") != 0
-			&& strcmp(fdFile.cFileName, "..") != 0)
+		if (strcmp(fdFile.cFileName, ".") != 0 && strcmp(fdFile.cFileName, "..") != 0)
 		{
-			sprintf_s(sPath, 2048, "%s\\%s", sDir, fdFile.cFileName);
-
-			if (!(fdFile.dwFileAttributes &FILE_ATTRIBUTE_DIRECTORY))
+			if (!(fdFile.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY))
 			{
-				paths.push_back(sPath);
+				if (anm)
+				{
+					sprintf_s(sPath, 2048, "%s\\%s", sDir, fdFile.cFileName);
+					paths.push_back(sPath);
+				}
+				else
+				{
+					sprintf_s(sPath, 2048, "%s", fdFile.cFileName);
+					paths.push_back(sPath);
+				}
 			}
 		}
 	} while (FindNextFile(hFind, &fdFile));    
@@ -210,7 +256,7 @@ static auto vector_getter = [](void* vec, int idx, const char** out_text)
 bool ListBox(const char* label, int* currIndex, std::vector<std::string>& values)
 {
 	if (values.empty()) { return false; }
-	return ImGui::ListBox(label, currIndex, vector_getter, static_cast<void*>(&values), values.size());
+	return ImGui::Combo(label, currIndex, vector_getter, static_cast<void*>(&values), values.size());
 }
 
 glm::mat4 computeMatricesFromInputs(glm::vec3 &trans, float &yaw, float &pitch, glm::vec3 center)
@@ -220,7 +266,7 @@ glm::mat4 computeMatricesFromInputs(glm::vec3 &trans, float &yaw, float &pitch, 
 
 	if (state == 1)
 	{
-		if (mx > 0 && mx < nwidth && my > 0 && my < nheight && !ImGui::IsAnyWindowHovered())
+		if (mx > 0 && mx < nwidth && my > 0 && my < nheight && !ImGui::IsAnyWindowFocused())
 		{
 			if (mousex != lastx)
 				yaw += mousex * .6f;
@@ -243,7 +289,7 @@ glm::mat4 computeMatricesFromInputs(glm::vec3 &trans, float &yaw, float &pitch, 
 
 	if (state == 2)
 	{
-		if (mx > 0 && mx < nwidth && my > 0 && my < nheight && !ImGui::IsAnyWindowHovered())
+		if (mx > 0 && mx < nwidth && my > 0 && my < nheight && !ImGui::IsAnyWindowFocused())
 		{
 			if (mousex != lastx)
 			{
@@ -422,40 +468,48 @@ int main()
 	io.IniFilename = NULL;
 
 	GLuint shaderidone = 0, shaderidtwo = 0;
-	useshader(shaderidone, "map.vert", "map.frag");
-	useshader(shaderidtwo, "model.vert", "model.frag");
+	useshader(shaderidone, "glsl/map.vert", "glsl/map.frag");
+	useshader(shaderidtwo, "glsl/model.vert", "glsl/model.frag");
 
-	uint32_t idone = loadDDS("map.dds");
-	uint32_t idtwo = loadDDS("yasuo_base_tx_cm.dds");
-
+	GLuint idone = loadDDS("glsl/map.dds");
 	glActiveTexture(GL_TEXTURE0 + idone);
 	glBindTexture(GL_TEXTURE_2D, idone);
 
-	glActiveTexture(GL_TEXTURE0 + idtwo);
-	glBindTexture(GL_TEXTURE_2D, idtwo);
-
 	glUseProgram(shaderidone);
 	GLuint mvprefe = glGetUniformLocation(shaderidone, "MVP");
-	glUniform1i(glGetUniformLocation(shaderidone, "Diffuse"), idone);
+	GLuint texrefe = glGetUniformLocation(shaderidone, "Diffuse");
 
 	glUseProgram(shaderidtwo);
 	GLuint mvprefet = glGetUniformLocation(shaderidtwo, "MVP");
 	GLuint bonerefet = glGetUniformLocation(shaderidtwo, "Bones");
-	glUniform1i(glGetUniformLocation(shaderidtwo, "Diffuse"), idtwo);
+	GLuint texrefet = glGetUniformLocation(shaderidtwo, "Diffuse");
 
 	Skin myskn;
 	Skeleton myskl;
-	openskn(&myskn, "yasuo.skn");
-	openskl(&myskl, "yasuo.skl");
+	openskn(&myskn, "aatrox.skn");
+	openskl(&myskl, "aatrox.skl");
 	fixbone(&myskn, &myskl);
 
 	std::vector<Animation> myanm;
-	std::vector<std::string> paths = ListDirectoryContents("animations");
-	for (uint32_t i = 0; i < paths.size(); i++)
+	std::vector<std::string> pathsanm = ListDirectoryContents("animations", true);
+	for (uint32_t i = 0; i < pathsanm.size(); i++)
 	{
 		Animation temp;
-		openanm(&temp, paths[i].c_str());
+		openanm(&temp, pathsanm[i].c_str());
 		myanm.push_back(temp);
+	}
+
+	std::vector<GLuint> mydds;
+	std::vector<std::string> pathsdds = ListDirectoryContents("", false);
+	for (uint32_t i = 0; i < pathsdds.size(); i++)
+	{
+		mydds.push_back(loadDDS(pathsdds[i].c_str()));
+	}
+
+	for (uint32_t i = 0; i < mydds.size(); i++)
+	{
+		glActiveTexture(GL_TEXTURE0 + mydds[i]);
+		glBindTexture(GL_TEXTURE_2D, mydds[i]);
 	}
 
 	uint32_t vertexBuffer;
@@ -531,6 +585,8 @@ int main()
 	for (unsigned int i = 0; i < BoneTransforms.size(); i++)
 		BoneTransforms[i] = glm::identity<glm::mat4>();
 
+	std::vector<int> nowdds;
+	nowdds.resize(myskn.Meshes.size());
 	int nowanm = 0;
 	float Time = 0.f;
 	float speedanm = 1.f;
@@ -540,7 +596,6 @@ int main()
 	float yaw = 90.f, pitch = 70.f;
 	double Lastedtime = 0;
 	ShowWindow(hWnd, TRUE);
-	SetFocus(hWnd);
 	while (active)
 	{
 		if (PeekMessage(&msg, NULL, 0U, 0U, PM_REMOVE))
@@ -561,12 +616,22 @@ int main()
 		ImGui_ImplWin32_NewFrame();
 		ImGui::NewFrame();
 
-		ImGui::Begin("MainWindow", 0, ImGuiWindowFlags_AlwaysAutoResize);
+		ImGui::Begin("Main", 0, ImGuiWindowFlags_AlwaysAutoResize);
+		ImGui::Text("Skin");
+		//getallfiles or champ
+		//skn
+		//skl
+		for (uint32_t i = 0; i < myskn.Meshes.size(); i++)
+		{
+			ListBox(myskn.Meshes[i].Name.c_str(), &nowdds[i], pathsdds);
+			myskn.Meshes[i].texid = mydds[nowdds[i]];
+		}
+		ImGui::Text("Animation");
 		ImGui::Checkbox("Play/Stop", &playanm);
 		ImGui::Checkbox("Jump To Next", &jumpnext);
-		ImGui::SliderFloat("Animation Speed", &speedanm, 0.f, 10.f);
-		ImGui::SliderFloat("Animation Time", &Time, 0.f, myanm[nowanm].Duration);
-		ListBox("Animation List", &nowanm, paths);
+		ImGui::SliderFloat("Speed", &speedanm, 0.f, 10.f);
+		ImGui::SliderFloat("Time", &Time, 0.f, myanm[nowanm].Duration);
+		ListBox("List", &nowanm, pathsanm);
 		ImGui::End();
 
 		if (playanm)
@@ -590,6 +655,7 @@ int main()
 		SetupAnimation(&BoneTransforms, Time, &myanm[nowanm], &myskl);
 
 		glUseProgram(shaderidone);
+		glUniform1i(texrefe, idone - 1);
 		glBindVertexArray(vertexarrayplaneBuffer);
 		glBindBuffer(GL_ARRAY_BUFFER, vertexplaneBuffer);
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexplaneBuffer);
@@ -606,6 +672,7 @@ int main()
 		glUniformMatrix4fv(bonerefet, BoneTransforms.size(), GL_FALSE, (float*)&BoneTransforms[0]);
 		for (uint32_t i = 0; i < myskn.Meshes.size(); i++)
 		{
+			glUniform1i(texrefet, myskn.Meshes[i].texid);
 			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexBuffer[i]);
 			glDrawElements(GL_TRIANGLES, myskn.Meshes[i].IndexCount, GL_UNSIGNED_SHORT, 0);
 		}

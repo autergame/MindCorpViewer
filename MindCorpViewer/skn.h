@@ -21,9 +21,9 @@ struct SubMeshHeader
 
 struct Mesh
 {
+	GLuint texid;
 	std::string Name;
 	uint32_t Hash;
-
 	uint16_t* Indices;
 	size_t IndexCount;
 };
