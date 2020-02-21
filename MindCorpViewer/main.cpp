@@ -18,8 +18,36 @@
 #include "skl.h"
 #include "anm.h"
 
-HDC hDC;
-HWND hWnd;
+typedef HGLRC WINAPI wglCreateContextAttribsARB_type(HDC hdc, HGLRC hShareContext,
+	const int *attribList);
+wglCreateContextAttribsARB_type *wglCreateContextAttribsARB;
+
+#define WGL_CONTEXT_MAJOR_VERSION_ARB             0x2091
+#define WGL_CONTEXT_MINOR_VERSION_ARB             0x2092
+#define WGL_CONTEXT_PROFILE_MASK_ARB              0x9126
+
+#define WGL_CONTEXT_CORE_PROFILE_BIT_ARB          0x00000001
+
+typedef BOOL WINAPI wglChoosePixelFormatARB_type(HDC hdc, const int *piAttribIList,
+	const FLOAT *pfAttribFList, UINT nMaxFormats, int *piFormats, UINT *nNumFormats);
+wglChoosePixelFormatARB_type *wglChoosePixelFormatARB;
+
+#define WGL_DRAW_TO_WINDOW_ARB                    0x2001
+#define WGL_ACCELERATION_ARB                      0x2003
+#define WGL_SUPPORT_OPENGL_ARB                    0x2010
+#define WGL_DOUBLE_BUFFER_ARB                     0x2011
+#define WGL_PIXEL_TYPE_ARB                        0x2013
+#define WGL_COLOR_BITS_ARB                        0x2014
+#define WGL_DEPTH_BITS_ARB                        0x2022
+#define WGL_STENCIL_BITS_ARB                      0x2023
+#define WGL_SAMPLE_BUFFERS_ARB                    0x2041
+#define WGL_SAMPLES_ARB                           0x2042
+
+#define WGL_FULL_ACCELERATION_ARB                 0x2027
+#define WGL_TYPE_RGBA_ARB                         0x202B
+
+//HDC hDC;
+//HWND hWnd;
 bool touch[256];
 float zoom = 700;
 bool active = true;
@@ -266,7 +294,7 @@ glm::mat4 computeMatricesFromInputs(glm::vec3 &trans, float &yaw, float &pitch, 
 
 	if (state == 1)
 	{
-		if (mx > 0 && mx < nwidth && my > 0 && my < nheight && !ImGui::IsAnyWindowFocused())
+		if (mx > 0 && mx < nwidth && my > 0 && my < nheight && !ImGui::IsAnyWindowHovered() && !ImGui::IsAnyWindowFocused())
 		{
 			if (mousex != lastx)
 				yaw += mousex * .6f;
@@ -289,7 +317,7 @@ glm::mat4 computeMatricesFromInputs(glm::vec3 &trans, float &yaw, float &pitch, 
 
 	if (state == 2)
 	{
-		if (mx > 0 && mx < nwidth && my > 0 && my < nheight && !ImGui::IsAnyWindowFocused())
+		if (mx > 0 && mx < nwidth && my > 0 && my < nheight && !ImGui::IsAnyWindowHovered())
 		{
 			if (mousex != lastx)
 			{
@@ -308,12 +336,6 @@ glm::mat4 computeMatricesFromInputs(glm::vec3 &trans, float &yaw, float &pitch, 
 	return glm::perspective(glm::radians(45.f), (float)nwidth / (float)nheight, 0.1f, 10000.0f) * viewmatrix;
 }
 
-void reshape(int width, int height)
-{
-	glViewport(0, 0, width, height);
-	nwidth = width; nheight = height;
-}
-
 extern LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 LRESULT WINAPI WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
@@ -324,7 +346,8 @@ LRESULT WINAPI WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 	switch (uMsg) 
 	{
 		case WM_SIZE:
-			reshape(LOWORD(lParam), HIWORD(lParam));
+			glViewport(0, 0, LOWORD(lParam), HIWORD(lParam));
+			nwidth = LOWORD(lParam); nheight = HIWORD(lParam);
 			PostMessage(hWnd, WM_PAINT, 0, 0);
 			break;
 
@@ -342,8 +365,11 @@ LRESULT WINAPI WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 		case WM_MOUSEWHEEL:
 			value = (int)(short)HIWORD(wParam);
-			zoom -= value > 100 ? 100 : value < -100 ? -100 : value;
-			zoom = zoom > 3000.f ? 3000.f : zoom < 100.f ? 100.f : zoom;
+			if (!ImGui::IsAnyWindowHovered())
+			{
+				zoom -= value > 100 ? 100 : value < -100 ? -100 : value;
+				zoom = zoom > 3000.f ? 3000.f : zoom < 100.f ? 100.f : zoom;
+			}
 			break;
 
 		case WM_LBUTTONDOWN:
@@ -380,77 +406,184 @@ int main()
 	QueryPerformanceFrequency(&Frequencye);
 	QueryPerformanceCounter(&Starte);
 
-	MSG msg;
-	WNDCLASS wc;
-	PIXELFORMATDESCRIPTOR pfd;
-	int width = 1024, height = 600;
+	WNDCLASS window_class;
+	window_class.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
+	window_class.lpfnWndProc = (WNDPROC)WindowProc;
+	window_class.cbClsExtra = 0;
+	window_class.cbWndExtra = 0;
+	window_class.hInstance = GetModuleHandle(0);
+	window_class.hIcon = LoadIcon(NULL, IDI_WINLOGO);
+	window_class.hCursor = LoadCursor(0, IDC_ARROW);
+	window_class.hbrBackground = 0;
+	window_class.hbrBackground = NULL;
+	window_class.lpszMenuName = NULL;
+	window_class.lpszClassName = "mindcorpviewer";
 
-	static HINSTANCE hInstance = GetModuleHandle(NULL);
-	wc.style = CS_OWNDC;
-	wc.lpfnWndProc = (WNDPROC)WindowProc;
-	wc.cbClsExtra = 0;
-	wc.cbWndExtra = 0;
-	wc.hInstance = hInstance;
-	wc.hIcon = LoadIcon(NULL, IDI_WINLOGO);
-	wc.hCursor = LoadCursor(NULL, IDC_ARROW);
-	wc.hbrBackground = NULL;
-	wc.lpszMenuName = NULL;
-	wc.lpszClassName = "mindcorp";
-
-	if (!RegisterClass(&wc)) {
-		printf("RegisterClass() failed: Cannot register window class\n");
+	if (!RegisterClassA(&window_class)) {
+		printf("Failed to register window.");
 		return 1;
 	}
 
+	int width = 1024, height = 600;
 	RECT rectScreen;
 	HWND hwndScreen = GetDesktopWindow();
 	GetWindowRect(hwndScreen, &rectScreen);
 	int PosX = ((rectScreen.right - rectScreen.left) / 2 - width / 2);
 	int PosY = ((rectScreen.bottom - rectScreen.top) / 2 - height / 2);
 
-	hWnd = CreateWindow("mindcorp", "", WS_OVERLAPPEDWINDOW |
-		WS_CLIPSIBLINGS | WS_CLIPCHILDREN,
-		PosX, PosY, width, height, NULL, NULL, hInstance, NULL);
+	HWND window = CreateWindowExA(
+		0,
+		window_class.lpszClassName,
+		"OpenGL Window",
+		WS_OVERLAPPEDWINDOW | WS_CLIPSIBLINGS | WS_CLIPCHILDREN,
+		PosX,
+		PosY,
+		width,
+		height,
+		0,
+		0,
+		window_class.hInstance,
+		0);
 
-	if (hWnd == NULL) {
-		printf("CreateWindow() failed: Cannot create a window\n");
+	if (!window) {
+		printf("Failed to create window.");
 		return 1;
 	}
 
-	hDC = GetDC(hWnd);
+	WNDCLASSA window_classe;
+	window_classe.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
+	window_classe.lpfnWndProc = DefWindowProcA;
+	window_classe.cbClsExtra = 0;
+	window_classe.cbWndExtra = 0;
+	window_classe.hInstance = GetModuleHandle(0);
+	window_classe.hIcon = LoadIcon(NULL, IDI_WINLOGO);
+	window_classe.hCursor = LoadCursor(0, IDC_ARROW);
+	window_classe.hbrBackground = 0;
+	window_classe.hbrBackground = NULL;
+	window_classe.lpszMenuName = NULL;
+	window_classe.lpszClassName = "Dummy_mindcorpviewer";
 
-	memset(&pfd, 0, sizeof(pfd));
+	if (!RegisterClassA(&window_classe)) {
+		printf("Failed to register dummy OpenGL window.");
+		return 1;
+	}
+
+	HWND dummy_window = CreateWindowExA(
+		0,
+		window_classe.lpszClassName,
+		"Dummy OpenGL Window",
+		0,
+		CW_USEDEFAULT,
+		CW_USEDEFAULT,
+		CW_USEDEFAULT,
+		CW_USEDEFAULT,
+		0,
+		0,
+		window_classe.hInstance,
+		0);
+
+	if (!dummy_window) {
+		printf("Failed to create dummy OpenGL window.");
+		return 1;
+	}
+
+	HDC dummy_dc = GetDC(dummy_window);
+
+	PIXELFORMATDESCRIPTOR pfd;
 	pfd.nSize = sizeof(pfd);
 	pfd.nVersion = 1;
-	pfd.dwFlags = PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER;
 	pfd.iPixelType = PFD_TYPE_RGBA;
-	pfd.cDepthBits = 24;
+	pfd.dwFlags = PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER;
 	pfd.cColorBits = 32;
+	pfd.iLayerType = PFD_MAIN_PLANE;
+	pfd.cDepthBits = 24;
 
-	int pf = ChoosePixelFormat(hDC, &pfd);
-	if (pf == 0) {
-		printf("ChoosePixelFormat() failed: Cannot find a suitable pixel format\n");
+	int pixel_formate = ChoosePixelFormat(dummy_dc, &pfd);
+	if (!pixel_formate) {
+		printf("Failed to find a suitable pixel format.");
+		return 1;
+	}
+	if (!SetPixelFormat(dummy_dc, pixel_formate, &pfd)) {
+		printf("Failed to set the pixel format.");
 		return 1;
 	}
 
-	if (SetPixelFormat(hDC, pf, &pfd) == FALSE) {
-		printf("SetPixelFormat() failed: Cannot set format specified\n");
+	HGLRC dummy_context = wglCreateContext(dummy_dc);
+	if (!dummy_context) {
+		printf("Failed to create a dummy OpenGL rendering context.");
 		return 1;
 	}
 
-	DescribePixelFormat(hDC, pf, sizeof(PIXELFORMATDESCRIPTOR), &pfd);
+	if (!wglMakeCurrent(dummy_dc, dummy_context)) {
+		printf("Failed to activate dummy OpenGL rendering context.");
+		return 1;
+	}
 
-	ReleaseDC(hWnd, hDC);
+	wglCreateContextAttribsARB = (wglCreateContextAttribsARB_type*)wglGetProcAddress(
+		"wglCreateContextAttribsARB");
+	wglChoosePixelFormatARB = (wglChoosePixelFormatARB_type*)wglGetProcAddress(
+		"wglChoosePixelFormatARB");
 
-	hDC = GetDC(hWnd);
-	HGLRC hRC = wglCreateContext(hDC);
-	wglMakeCurrent(hDC, hRC);
+	wglMakeCurrent(dummy_dc, 0);
+	wglDeleteContext(dummy_context);
+	ReleaseDC(dummy_window, dummy_dc);
+	DestroyWindow(dummy_window);
+
+	HDC real_dc = GetDC(window);
+
+	int pixel_format_attribs[] = {
+	  WGL_DRAW_TO_WINDOW_ARB,     GL_TRUE,
+	  WGL_SUPPORT_OPENGL_ARB,     GL_TRUE,
+	  WGL_DOUBLE_BUFFER_ARB,      GL_TRUE,
+	  WGL_ACCELERATION_ARB,       WGL_FULL_ACCELERATION_ARB,
+	  WGL_PIXEL_TYPE_ARB,         WGL_TYPE_RGBA_ARB,
+	  WGL_COLOR_BITS_ARB,         32,
+	  WGL_DEPTH_BITS_ARB,         24,
+	  WGL_STENCIL_BITS_ARB,       0,
+	  WGL_SAMPLE_BUFFERS_ARB, GL_TRUE,
+	  WGL_SAMPLES_ARB, 2,
+	  0
+	};
+
+	int pixel_format;
+	UINT num_formats;
+	wglChoosePixelFormatARB(real_dc, pixel_format_attribs, 0, 1, &pixel_format, &num_formats);
+	if (!num_formats) {
+		printf("Failed to set the OpenGL 3.3 pixel format.");
+		return 1;
+	}
+
+	PIXELFORMATDESCRIPTOR pfde;
+	DescribePixelFormat(real_dc, pixel_format, sizeof(pfde), &pfde);
+	if (!SetPixelFormat(real_dc, pixel_format, &pfde)) {
+		printf("Failed to set the OpenGL 3.3 pixel format.");
+		return 1;
+	}
+
+	int gl33_attribs[] = {
+		WGL_CONTEXT_MAJOR_VERSION_ARB, 3,
+		WGL_CONTEXT_MINOR_VERSION_ARB, 3,
+		WGL_CONTEXT_PROFILE_MASK_ARB,  WGL_CONTEXT_CORE_PROFILE_BIT_ARB,
+		0,
+	};
+
+	HGLRC gl33_context = wglCreateContextAttribsARB(real_dc, 0, gl33_attribs);
+	if (!gl33_context) {
+		printf("Failed to create OpenGL 3.3 context.");
+		return 1;
+	}
+
+	if (!wglMakeCurrent(real_dc, gl33_context)) {
+		printf("Failed to activate OpenGL 3.3 rendering context.");
+		return 1;
+	}
 
 	if (!gladLoadGLLoader((GLADloadproc)GetAnyGLFuncAddress)) {
 		printf("gladLoadGLLoader() failed: Cannot load glad\n");
 		return 1;
 	}
 
+	glEnable(GL_MULTISAMPLE);
 	glEnable(GL_DEPTH_TEST);
 	glDepthFunc(GL_LESS);
 	glClearColor(.5f, .5f, .5f, 1.f);
@@ -458,14 +591,11 @@ int main()
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
 	ImGuiIO& io = ImGui::GetIO(); (void)io;
-
-	ImGui_ImplWin32_Init(hWnd);
-
+	io.IniFilename = "";
+	ImGui_ImplWin32_Init(window);
 	const char* glsl_version = "#version 130";
 	ImGui_ImplOpenGL3_Init(glsl_version);
-
 	ImGui::StyleColorsDark();
-	io.IniFilename = NULL;
 
 	GLuint shaderidone = 0, shaderidtwo = 0;
 	useshader(shaderidone, "glsl/map.vert", "glsl/map.frag");
@@ -484,10 +614,21 @@ int main()
 	GLuint bonerefet = glGetUniformLocation(shaderidtwo, "Bones");
 	GLuint texrefet = glGetUniformLocation(shaderidtwo, "Diffuse");
 
+	WIN32_FIND_DATA sknFile;
+	if (FindFirstFile("*.skn", &sknFile) == INVALID_HANDLE_VALUE)
+	{
+		printf("File not found: [%s]\n", "*.skn");
+	}
+	WIN32_FIND_DATA sklFile;
+	if (FindFirstFile("*.skl", &sklFile) == INVALID_HANDLE_VALUE)
+	{
+		printf("File not found: [%s]\n", "*.skl");
+	}
+
 	Skin myskn;
 	Skeleton myskl;
-	openskn(&myskn, "aatrox.skn");
-	openskl(&myskl, "aatrox.skl");
+	openskn(&myskn, sknFile.cFileName);
+	openskl(&myskl, sklFile.cFileName);
 	fixbone(&myskn, &myskl);
 
 	std::vector<Animation> myanm;
@@ -511,6 +652,10 @@ int main()
 		glActiveTexture(GL_TEXTURE0 + mydds[i]);
 		glBindTexture(GL_TEXTURE_2D, mydds[i]);
 	}
+
+	uint32_t vertexarrayBuffer;
+	glGenVertexArrays(1, &vertexarrayBuffer);
+	glBindVertexArray(vertexarrayBuffer);
 
 	uint32_t vertexBuffer;
 	glGenBuffers(1, &vertexBuffer);
@@ -549,6 +694,8 @@ int main()
 		glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(uint16_t) * myskn.Meshes[i].IndexCount, myskn.Meshes[i].Indices, GL_STATIC_DRAW);
 	}
 
+	glBindVertexArray(0);
+
 	float planebufvertex[] = {
 	    400.f, 0.f, 400.f, 1.f,1.f,
 		400.f, 0.f,-400.f, 1.f,0.f,
@@ -561,15 +708,17 @@ int main()
 		1, 2, 3
 	};
 
-	uint32_t vertexarrayplaneBuffer, vertexplaneBuffer, indexplaneBuffer;
+	uint32_t vertexarrayplaneBuffer;
 	glGenVertexArrays(1, &vertexarrayplaneBuffer);
-	glGenBuffers(1, &vertexplaneBuffer);
-	glGenBuffers(1, &indexplaneBuffer);
 	glBindVertexArray(vertexarrayplaneBuffer);
 
+	uint32_t vertexplaneBuffer;
+	glGenBuffers(1, &vertexplaneBuffer);
 	glBindBuffer(GL_ARRAY_BUFFER, vertexplaneBuffer);
 	glBufferData(GL_ARRAY_BUFFER, sizeof(planebufvertex), planebufvertex, GL_STATIC_DRAW);
 
+	uint32_t indexplaneBuffer;
+	glGenBuffers(1, &indexplaneBuffer);
 	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexplaneBuffer);
 	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(planebufindex), planebufindex, GL_STATIC_DRAW);
 
@@ -585,17 +734,24 @@ int main()
 	for (unsigned int i = 0; i < BoneTransforms.size(); i++)
 		BoneTransforms[i] = glm::identity<glm::mat4>();
 
-	std::vector<int> nowdds;
-	nowdds.resize(myskn.Meshes.size());
+	glm::vec3 trans(1.f);
+	double Lastedtime = 0;
+	float yaw = 90.f, pitch = 70.f;
+
 	int nowanm = 0;
 	float Time = 0.f;
 	float speedanm = 1.f;
 	bool playanm = false;
 	bool jumpnext = false;
-	glm::vec3 trans(1.f);
-	float yaw = 90.f, pitch = 70.f;
-	double Lastedtime = 0;
-	ShowWindow(hWnd, TRUE);
+	bool gotostart = true;
+	int* nowdds = (int*)calloc(myskn.Meshes.size(), sizeof(int));
+	bool* showmesh = (bool*)calloc(myskn.Meshes.size(), sizeof(bool));
+	memset(showmesh, 1, myskn.Meshes.size() * sizeof(bool));
+
+	MSG msg;
+	ShowWindow(window, TRUE);
+	UpdateWindow(window);
+	HDC gldc = GetDC(window);
 	while (active)
 	{
 		if (PeekMessage(&msg, NULL, 0U, 0U, PM_REMOVE))
@@ -605,17 +761,22 @@ int main()
 			continue;
 		}
 
+		if (touch[VK_ESCAPE])
+			active = FALSE;
+
 		float Deltatime = float(GetTimeSinceStart() - Lastedtime);
 		Lastedtime = GetTimeSinceStart();
 
 		char tmp[64];
 		sprintf_s(tmp, "MindCorpLowUltraGameEngine - FPS: %1.0f", 1 / Deltatime);
-		SetWindowText(hWnd, tmp);
+		SetWindowText(window, tmp);
 
 		ImGui_ImplOpenGL3_NewFrame();
 		ImGui_ImplWin32_NewFrame();
 		ImGui::NewFrame();
 
+		ImGui::SetNextWindowPos(ImVec2(2, 2), ImGuiCond_Once);
+		ImGui::SetNextWindowSize(ImVec2(0, nheight/2));
 		ImGui::Begin("Main", 0, ImGuiWindowFlags_AlwaysAutoResize);
 		ImGui::Text("Skin");
 		//getallfiles or champ
@@ -623,79 +784,80 @@ int main()
 		//skl
 		for (uint32_t i = 0; i < myskn.Meshes.size(); i++)
 		{
-			ListBox(myskn.Meshes[i].Name.c_str(), &nowdds[i], pathsdds);
+			ImGui::Text(myskn.Meshes[i].Name.c_str());
+			ImGui::PushID(i);
+			ListBox("", &nowdds[i], pathsdds);
 			myskn.Meshes[i].texid = mydds[nowdds[i]];
+			ImGui::PopID();
+		}
+		for (uint32_t i = 0; i < myskn.Meshes.size(); i++)
+		{
+			ImGui::Checkbox(myskn.Meshes[i].Name.c_str(), &showmesh[i]);
 		}
 		ImGui::Text("Animation");
 		ImGui::Checkbox("Play/Stop", &playanm);
+		ImGui::Checkbox("Go To Start", &gotostart);
 		ImGui::Checkbox("Jump To Next", &jumpnext);
-		ImGui::SliderFloat("Speed", &speedanm, 0.f, 10.f);
-		ImGui::SliderFloat("Time", &Time, 0.f, myanm[nowanm].Duration);
+		ImGui::SliderFloat("Speed", &speedanm, 0.001f, 5.f);
+		ImGui::SliderFloat("Time", &Time, 0.001f, myanm[nowanm].Duration);
 		ListBox("List", &nowanm, pathsanm);
 		ImGui::End();
 
-		if (playanm)
+		glm::mat4 mvp = computeMatricesFromInputs(trans, yaw, pitch, myskn.center);
+
+		bool dur = Time > myanm[nowanm].Duration;
+		if (playanm && !dur)
 			Time += Deltatime * speedanm;
-		if (Time > myanm[nowanm].Duration)
+		if (dur)
 		{
-			Time = 0;
+			if(gotostart)
+				Time = 0;
 			if(jumpnext)
 				nowanm += 1;
 			if (nowanm == myanm.size())
 				nowanm = 0;
 		}
 
-		if (touch[VK_ESCAPE])
-			active = FALSE;
+		SetupAnimation(&BoneTransforms, Time, &myanm[nowanm], &myskl);
 
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-		glm::mat4 mvp = computeMatricesFromInputs(trans, yaw, pitch, myskn.center);
-
-		SetupAnimation(&BoneTransforms, Time, &myanm[nowanm], &myskl);
 
 		glUseProgram(shaderidone);
 		glUniform1i(texrefe, idone - 1);
 		glBindVertexArray(vertexarrayplaneBuffer);
-		glBindBuffer(GL_ARRAY_BUFFER, vertexplaneBuffer);
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexplaneBuffer);
 		glUniformMatrix4fv(mvprefe, 1, GL_FALSE, (float*)&mvp);
 		glDrawElements(GL_TRIANGLES, sizeof(planebufindex) / sizeof(planebufindex[0]), GL_UNSIGNED_INT, 0);
 		glBindVertexArray(0);
 
 		glUseProgram(shaderidtwo);
-		glBindBuffer(GL_ARRAY_BUFFER, vertexBuffer);
-		glBindBuffer(GL_ARRAY_BUFFER, uvBuffer);
-		glBindBuffer(GL_ARRAY_BUFFER, boneindexBuffer);
-		glBindBuffer(GL_ARRAY_BUFFER, boneweightsBuffer);
+		glBindVertexArray(vertexarrayBuffer);
 		glUniformMatrix4fv(mvprefet, 1, GL_FALSE, (float*)&mvp);
 		glUniformMatrix4fv(bonerefet, BoneTransforms.size(), GL_FALSE, (float*)&BoneTransforms[0]);
 		for (uint32_t i = 0; i < myskn.Meshes.size(); i++)
 		{
-			glUniform1i(texrefet, myskn.Meshes[i].texid);
-			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexBuffer[i]);
-			glDrawElements(GL_TRIANGLES, myskn.Meshes[i].IndexCount, GL_UNSIGNED_SHORT, 0);
+			if (showmesh[i])
+			{
+				glUniform1i(texrefet, myskn.Meshes[i].texid);
+				glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexBuffer[i]);
+				glDrawElements(GL_TRIANGLES, myskn.Meshes[i].IndexCount, GL_UNSIGNED_SHORT, 0);
+			}
 		}
 
 		ImGui::Render();
 		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-		SwapBuffers(hDC);
+		SwapBuffers(gldc);
 	}
 
 	ImGui_ImplOpenGL3_Shutdown();
-	wglDeleteContext(hRC);
+	wglDeleteContext(gl33_context);
 	ImGui::DestroyContext();
 	ImGui_ImplWin32_Shutdown();
 
 	wglMakeCurrent(NULL, NULL);
-	wglDeleteContext(hRC);
-	hRC = NULL;
-	ReleaseDC(hWnd, hDC);
-	hDC = NULL;
-	DestroyWindow(hWnd);
-	hWnd = NULL;
-	UnregisterClass("mindcorp", hInstance);
-	hInstance = NULL;
+	wglDeleteContext(gl33_context);
+	ReleaseDC(window, gldc);
+	DestroyWindow(window);
+	UnregisterClass("WGL_fdjhsklf", window_class.hInstance);
 
 	return (int)msg.wParam;
 }
