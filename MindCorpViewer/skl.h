@@ -1,5 +1,4 @@
 #pragma once
-#include <windows.h>
 
 struct Bone
 {
@@ -55,8 +54,8 @@ void RecursiveInvertGlobalMatrices(glm::mat4 Parent, Bone* Bone)
 
 uint32_t StringToHash(const std::string& s)
 {
-	unsigned int hash = 0;
-	unsigned int temp = 0;
+	uint32_t hash = 0;
+	uint32_t temp = 0;
 
 	for (auto& c : s)
 	{
@@ -92,7 +91,7 @@ int openskl(Skeleton *myskin, const char* filename)
 		myskin->Bones.resize(BoneCount);
 		for (uint32_t i = 0; i < BoneCount; i++)
 		{			
-			auto& Bone = myskin->Bones[i];
+			Bone& Bone = myskin->Bones[i];
 
 			fread(Name, sizeof(char), 32, fp);
 			Bone.Hash = StringToHash(Name);
@@ -267,9 +266,9 @@ void fixbone(Skin* skn, Skeleton* skl)
 {
 	for (uint32_t i = 0; i < skn->BoneIndices.size(); i++)
 	{
-		skn->BoneIndices[i][0] = skl->BoneIndices[skn->BoneIndices[i][0]];
-		skn->BoneIndices[i][1] = skl->BoneIndices[skn->BoneIndices[i][1]];
-		skn->BoneIndices[i][2] = skl->BoneIndices[skn->BoneIndices[i][2]];
-		skn->BoneIndices[i][3] = skl->BoneIndices[skn->BoneIndices[i][3]];
+		for (uint32_t k = 0; k < 4; k++)
+		{
+			skn->BoneIndices[i][k] = skl->BoneIndices[skn->BoneIndices[i][k]];
+		}
 	}
 }

@@ -1,5 +1,4 @@
 #pragma once
-#include <windows.h>
 
 struct Boneanm
 {
@@ -183,11 +182,10 @@ int openanm(Animation *myskin, const char* filename)
 
 		fseek(fp, HashesOffset, 0);
 		std::vector<uint32_t> HashEntries;
+		HashEntries.resize(BoneCount);
 		for (uint32_t i = 0; i < BoneCount; ++i)
 		{
-			uint32_t Hash;
-			fread(&Hash, sizeof(uint32_t), 1, fp);
-			HashEntries.push_back(Hash);
+			fread(&HashEntries[i], sizeof(uint32_t), 1, fp);
 		}
 
 		fseek(fp, EntriesOffset, 0);
@@ -222,15 +220,15 @@ int openanm(Animation *myskin, const char* filename)
 			switch (DataType)
 			{
 				case FrameDataType::RotationType:
-				CompressedRotations[HashIndex].push_back(std::pair<uint16_t, std::bitset<48>>(CompressedTime, CompressedData));
+				CompressedRotations[HashIndex].emplace_back(CompressedTime, CompressedData);
 				break;
 
 			case FrameDataType::TranslationType:
-				CompressedTranslations[HashIndex].push_back(std::pair<uint16_t, std::bitset<48>>(CompressedTime, CompressedData));
+				CompressedTranslations[HashIndex].emplace_back(CompressedTime, CompressedData);
 				break;
 
 			case FrameDataType::ScaleType:
-				CompressedScales[HashIndex].push_back(std::pair<uint16_t, std::bitset<48>>(CompressedTime, CompressedData));
+				CompressedScales[HashIndex].emplace_back(CompressedTime, CompressedData);
 				break;
 			}
 		}
@@ -252,7 +250,7 @@ int openanm(Animation *myskin, const char* filename)
 
 				glm::vec3 Translation = UncompressVec3(TranslationMin, TranslationMax, X, Y, Z);
 
-				BoneEntry.Translation.push_back(Boneanm::TranslationFrame(Time, Translation));
+				BoneEntry.Translation.emplace_back(Time, Translation);
 			}
 
 			for (auto &CompressedRotation : CompressedRotations[i])
@@ -267,7 +265,7 @@ int openanm(Animation *myskin, const char* filename)
 
 				glm::quat Rotation = UncompressQuaternion(DominantAxis, X, Y, Z);
 
-				BoneEntry.Rotation.push_back(Boneanm::RotationFrame(Time, Rotation));
+				BoneEntry.Rotation.emplace_back(Time, Rotation);
 			}
 
 			for (auto &CompressedScale : CompressedScales[i])
@@ -280,7 +278,7 @@ int openanm(Animation *myskin, const char* filename)
 				uint16_t Z = static_cast<uint16_t>((CompressedScale.second >> 32 & Mask).to_ulong());
 
 				glm::vec3 Scale = UncompressVec3(ScaleMin, ScaleMax, X, Y, Z);
-				BoneEntry.Scale.push_back(Boneanm::ScaleFrame(Time, Scale));
+				BoneEntry.Scale.emplace_back(Time, Scale);
 			}
 
 			myskin->Bones.push_back(BoneEntry);
@@ -417,9 +415,9 @@ int openanm(Animation *myskin, const char* filename)
 
 			for (auto& Frame : BoneIndex.second)
 			{
-				Bone.Translation.push_back(Boneanm::TranslationFrame(CurrentTime, TranslationOrScaleEntries[Frame.TranslationIndex]));
-				Bone.Rotation.push_back(Boneanm::RotationFrame(CurrentTime, RotationEntries[Frame.RotationIndex]));
-				Bone.Scale.push_back(Boneanm::ScaleFrame(CurrentTime, TranslationOrScaleEntries[Frame.ScaleIndex]));
+				Bone.Translation.emplace_back(CurrentTime, TranslationOrScaleEntries[Frame.TranslationIndex]);
+				Bone.Rotation.emplace_back(CurrentTime, RotationEntries[Frame.RotationIndex]);
+				Bone.Scale.emplace_back(CurrentTime, TranslationOrScaleEntries[Frame.ScaleIndex]);
 				CurrentTime += FrameDelay;
 			}
 
@@ -486,18 +484,15 @@ int openanm(Animation *myskin, const char* filename)
 			RotationEntries.push_back(RotationEntry);
 		}
 
-		std::vector<uint32_t> HashEntry;
-
-		size_t HashCount = (size_t)(FrameFileOffset - HashesOffset) / sizeof(uint32_t);
-
 		Offset = HashesOffset;
 		fseek(fp, Offset, 0);
 
+		std::vector<uint32_t> HashEntry;
+		size_t HashCount = (size_t)(FrameFileOffset - HashesOffset) / sizeof(uint32_t);
+		HashEntry.resize(HashCount);
 		for (size_t i = 0; i < HashCount; ++i)
 		{
-			uint32_t hashEntry;
-			fread(&hashEntry, sizeof(uint32_t), 1, fp); Offset += 4;
-			HashEntry.push_back(hashEntry);
+			fread(&HashEntry[i], sizeof(uint32_t), 1, fp); Offset += 4;
 		}
 
 		myskin->Bones.resize(BoneCount);
@@ -518,8 +513,6 @@ int openanm(Animation *myskin, const char* filename)
 				fread(&ScaleIndex, sizeof(uint16_t), 1, fp); Offset += 2;
 				fread(&RotationIndex, sizeof(uint16_t), 1, fp); Offset += 2;
 
-				myskin->Bones[j].Translation.push_back(Boneanm::TranslationFrame(CurrentTime, Translations[TranslationIndex]));
-
 				std::bitset<48> mask = 0x7FFF;
 				uint16_t flag = (uint16_t)(RotationEntries[RotationIndex] >> 45).to_ulong();
 				uint16_t sx = (uint16_t)(RotationEntries[RotationIndex] >> 30 & mask).to_ulong();
@@ -528,8 +521,9 @@ int openanm(Animation *myskin, const char* filename)
 
 				glm::quat RotationEntry = UncompressQuaternion(flag, sx, sy, sz);
 
-				myskin->Bones[j].Rotation.push_back(Boneanm::RotationFrame(CurrentTime, RotationEntry));
-				myskin->Bones[j].Scale.push_back(Boneanm::ScaleFrame(CurrentTime, Translations[ScaleIndex]));
+				myskin->Bones[j].Rotation.emplace_back(CurrentTime, RotationEntry);
+				myskin->Bones[j].Scale.emplace_back(CurrentTime, Translations[ScaleIndex]);
+				myskin->Bones[j].Translation.emplace_back(CurrentTime, Translations[TranslationIndex]);
 			}
 
 			CurrentTime += FrameDelay;

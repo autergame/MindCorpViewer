@@ -1,5 +1,4 @@
 #pragma once
-#include <windows.h>
 
 uint32_t FNV1Hash(const std::string& a_String)
 {

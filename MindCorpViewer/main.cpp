@@ -137,12 +137,12 @@ GLuint loadDDS(const char* filename)
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-	unsigned int BlockSize = (Format == 0x83F1) ? 8 : 16;
-	unsigned int Height = Header.height;
-	unsigned int Width = Header.width;
-	for (unsigned int i = 0; i < std::max(1u, Header.mipMapCount); i++)
+	uint32_t BlockSize = (Format == 0x83F1) ? 8 : 16;
+	uint32_t Height = Header.height;
+	uint32_t Width = Header.width;
+	for (uint32_t i = 0; i < std::max(1u, Header.mipMapCount); i++)
 	{
-		unsigned int Size = std::max(1u, ((Width + 3) / 4) * ((Height + 3) / 4)) * BlockSize;
+		uint32_t Size = std::max(1u, ((Width + 3) / 4) * ((Height + 3) / 4)) * BlockSize;
 		uint8_t* Buffer = (uint8_t*)calloc(Size, sizeof(uint8_t));
 		fread(Buffer, sizeof(uint8_t), Size, fp);
 
@@ -406,6 +406,106 @@ int main()
 	QueryPerformanceFrequency(&Frequencye);
 	QueryPerformanceCounter(&Starte);
 
+	int nowanm = 0;
+	bool showskl = true;
+	bool playanm = false;
+	bool jumpnext = false;
+	bool gotostart = true;
+	char* anmf = new char[256];
+	char* sknf = new char[256];
+	char* sklf = new char[256];
+	std::map<std::string, std::pair<int, bool>> nowshowddsv;
+
+	FILE *fp;
+	fopen_s(&fp, "config.txt", "rb+");
+	char line[256];
+	int linenum = 0;
+	int lineptrdds = 0;
+	int lineptrconf = 0;
+	int lineptrtemp = 0;
+	bool ddsinit = false;
+	bool confinit = false;
+	bool fileinit = false;
+	while (fgets(line, 256, fp) != NULL)
+	{
+		linenum++;		
+		lineptrtemp += strlen(line);
+		if (line[0] == '#' || line[0] == '\r' && line[1] == '\n')
+			continue;
+		if (strcmp(line, "-file-init-\r\n") == 0)
+		{
+			fileinit = true;
+			ddsinit = false;
+			confinit = false;
+			continue;
+		}
+		else if (strcmp(line, "-dds-init-\r\n") == 0)
+		{
+			ddsinit = true;
+			fileinit = false;
+			confinit = false;
+			lineptrdds = lineptrtemp;
+			continue;
+		}
+		else if (strcmp(line, "-config-init-\r\n") == 0)
+		{
+			confinit = true;
+			ddsinit = false;
+			fileinit = false;
+			lineptrconf = lineptrtemp;
+			continue;
+		}
+		if (fileinit)
+		{
+			char* type = new char[6];
+			char* value = new char[256];
+			if (sscanf_s(line, "%s = %s", type, 6, value, 255) != 2)
+			{
+				fprintf(stderr, "Syntax error, line %d\n", linenum);
+				continue;
+			}
+			if (strcmp(type, "anm") == 0)
+				anmf = value;
+			else if (strcmp(type, "skn") == 0)
+				sknf = value;
+			else if (strcmp(type, "skl") == 0)
+				sklf = value;
+		}
+		else if (ddsinit)
+		{
+			int value = 0;
+			bool show = true;
+			char* type = new char[256];
+			if (sscanf_s(line, "%s = %d %d", type, 255, &value, &show) != 3)
+			{
+				fprintf(stderr, "Syntax error, line %d\n", linenum);
+				continue;
+			}
+			std::pair<int, bool> paird(value, show);
+			nowshowddsv[type] = paird;
+		}
+		else if (confinit)
+		{
+			int value = 0;
+			char* type = new char[256];
+			if (sscanf_s(line, "%s = %d", type, 255, &value) != 2)
+			{
+				fprintf(stderr, "Syntax error, line %d\n", linenum);
+				continue;
+			}
+			if (strcmp(type, "anmlist") == 0)
+				nowanm = value;
+			else if (strcmp(type, "showskl") == 0)
+				showskl = value;
+			else if (strcmp(type, "playanm") == 0)
+				playanm = value;
+			else if (strcmp(type, "jumpnext") == 0)
+				jumpnext = value;
+			else if (strcmp(type, "gotostart") == 0)
+				gotostart = value;
+		}
+	}
+
 	WNDCLASS window_class;
 	window_class.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
 	window_class.lpfnWndProc = (WNDPROC)WindowProc;
@@ -540,7 +640,7 @@ int main()
 	  WGL_COLOR_BITS_ARB,         32,
 	  WGL_DEPTH_BITS_ARB,         24,
 	  WGL_STENCIL_BITS_ARB,       0,
-	  WGL_SAMPLE_BUFFERS_ARB, GL_TRUE,
+	  WGL_SAMPLE_BUFFERS_ARB,     GL_TRUE,
 	  WGL_SAMPLES_ARB, 2,
 	  0
 	};
@@ -597,48 +697,44 @@ int main()
 	ImGui_ImplOpenGL3_Init(glsl_version);
 	ImGui::StyleColorsDark();
 
-	GLuint shaderidone = 0, shaderidtwo = 0;
-	useshader(shaderidone, "glsl/map.vert", "glsl/map.frag");
-	useshader(shaderidtwo, "glsl/model.vert", "glsl/model.frag");
+	GLuint shaderidmap = 0, shaderidline = 0, shaderidmodel = 0;
+	useshader(shaderidmap, "glsl/map.vert", "glsl/map.frag");
+	useshader(shaderidline, "glsl/line.vert", "glsl/line.frag");
+	useshader(shaderidmodel, "glsl/model.vert", "glsl/model.frag");
 
 	GLuint idone = loadDDS("glsl/map.dds");
 	glActiveTexture(GL_TEXTURE0 + idone);
 	glBindTexture(GL_TEXTURE_2D, idone);
 
-	glUseProgram(shaderidone);
-	GLuint mvprefe = glGetUniformLocation(shaderidone, "MVP");
-	GLuint texrefe = glGetUniformLocation(shaderidone, "Diffuse");
+	glUseProgram(shaderidmap);
+	GLuint mvprefe = glGetUniformLocation(shaderidmap, "MVP");
+	GLuint texrefe = glGetUniformLocation(shaderidmap, "Diffuse");
 
-	glUseProgram(shaderidtwo);
-	GLuint mvprefet = glGetUniformLocation(shaderidtwo, "MVP");
-	GLuint bonerefet = glGetUniformLocation(shaderidtwo, "Bones");
-	GLuint texrefet = glGetUniformLocation(shaderidtwo, "Diffuse");
+	glUseProgram(shaderidline);
+	GLuint mvprefel = glGetUniformLocation(shaderidline, "MVP");
+	GLuint colorrefe = glGetUniformLocation(shaderidline, "Color");
 
-	WIN32_FIND_DATA sknFile;
-	if (FindFirstFile("*.skn", &sknFile) == INVALID_HANDLE_VALUE)
-	{
-		printf("File not found: [%s]\n", "*.skn");
-	}
-	WIN32_FIND_DATA sklFile;
-	if (FindFirstFile("*.skl", &sklFile) == INVALID_HANDLE_VALUE)
-	{
-		printf("File not found: [%s]\n", "*.skl");
-	}
+	glUseProgram(shaderidmodel);
+	GLuint mvprefet = glGetUniformLocation(shaderidmodel, "MVP");
+	GLuint bonerefet = glGetUniformLocation(shaderidmodel, "Bones");
+	GLuint texrefet = glGetUniformLocation(shaderidmodel, "Diffuse");
 
 	Skin myskn;
 	Skeleton myskl;
-	openskn(&myskn, sknFile.cFileName);
-	openskl(&myskl, sklFile.cFileName);
+	openskn(&myskn, sknf);
+	openskl(&myskl, sklf);
 	fixbone(&myskn, &myskl);
 
 	std::vector<Animation> myanm;
-	std::vector<std::string> pathsanm = ListDirectoryContents("animations", true);
+	std::vector<std::string> pathsanm = ListDirectoryContents(anmf, true);
 	for (uint32_t i = 0; i < pathsanm.size(); i++)
 	{
 		Animation temp;
 		openanm(&temp, pathsanm[i].c_str());
 		myanm.push_back(temp);
 	}
+	if (nowanm > pathsanm.size())
+		nowanm = 0;
 
 	std::vector<GLuint> mydds;
 	std::vector<std::string> pathsdds = ListDirectoryContents("", false);
@@ -697,13 +793,13 @@ int main()
 	glBindVertexArray(0);
 
 	float planebufvertex[] = {
-	    400.f, 0.f, 400.f, 1.f,1.f,
+		400.f, 0.f, 400.f, 1.f,1.f,
 		400.f, 0.f,-400.f, 1.f,0.f,
 	   -400.f, 0.f,-400.f, 0.f,0.f,
 	   -400.f, 0.f, 400.f, 0.f,1.f
 	};
 
-	unsigned int planebufindex[] = {
+	uint32_t planebufindex[] = {
 		0, 1, 3,
 		1, 2, 3
 	};
@@ -731,22 +827,66 @@ int main()
 
 	std::vector<glm::mat4> BoneTransforms;
 	BoneTransforms.resize(myskl.Bones.size());
-	for (unsigned int i = 0; i < BoneTransforms.size(); i++)
+	for (uint32_t i = 0; i < BoneTransforms.size(); i++)
 		BoneTransforms[i] = glm::identity<glm::mat4>();
+
+	std::vector<glm::vec4> lines;
+	lines.resize(myskl.Bones.size() * 2);
+	for (uint32_t i = 0; i < lines.size(); i++)
+		lines[i] = glm::vec4(1.f);
+
+	std::vector<glm::vec4> joints;
+	joints.resize(myskl.Bones.size());
+	for (uint32_t i = 0; i < joints.size(); i++)
+		joints[i] = glm::vec4(1.f);
+
+	uint32_t vertexarraylineBuffer;
+	glGenVertexArrays(1, &vertexarraylineBuffer);
+	glBindVertexArray(vertexarraylineBuffer);
+
+	uint32_t vertexlineBuffer;
+	glGenBuffers(1, &vertexlineBuffer);
+	glBindBuffer(GL_ARRAY_BUFFER, vertexlineBuffer);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec4) * lines.size(), lines.data(), GL_DYNAMIC_DRAW);
+
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 0, 0);
+
+	glBindVertexArray(0);
+
+	uint32_t vertexarrayjointBuffer;
+	glGenVertexArrays(1, &vertexarrayjointBuffer);
+	glBindVertexArray(vertexarrayjointBuffer);
+
+	uint32_t vertexjointBuffer;
+	glGenBuffers(1, &vertexjointBuffer);
+	glBindBuffer(GL_ARRAY_BUFFER, vertexjointBuffer);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec4) * joints.size(), joints.data(), GL_DYNAMIC_DRAW);
+
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 0, 0);
+
+	glBindVertexArray(0);
 
 	glm::vec3 trans(1.f);
 	double Lastedtime = 0;
 	float yaw = 90.f, pitch = 70.f;
 
-	int nowanm = 0;
 	float Time = 0.f;
 	float speedanm = 1.f;
-	bool playanm = false;
-	bool jumpnext = false;
-	bool gotostart = true;
 	int* nowdds = (int*)calloc(myskn.Meshes.size(), sizeof(int));
 	bool* showmesh = (bool*)calloc(myskn.Meshes.size(), sizeof(bool));
 	memset(showmesh, 1, myskn.Meshes.size() * sizeof(bool));
+
+	for (uint32_t i = 0; i < myskn.Meshes.size(); i++)
+	{
+		auto it = nowshowddsv.find(myskn.Meshes[i].Name);
+		if (it != nowshowddsv.end())
+		{
+			nowdds[i] = it->second.first;
+			showmesh[i] = it->second.second;
+		}
+	}
 
 	MSG msg;
 	ShowWindow(window, TRUE);
@@ -775,13 +915,11 @@ int main()
 		ImGui_ImplWin32_NewFrame();
 		ImGui::NewFrame();
 
-		ImGui::SetNextWindowPos(ImVec2(2, 2), ImGuiCond_Once);
+		ImGui::SetNextWindowPos(ImVec2(4, 4), ImGuiCond_Once);
 		ImGui::SetNextWindowSize(ImVec2(0, nheight/2));
 		ImGui::Begin("Main", 0, ImGuiWindowFlags_AlwaysAutoResize);
 		ImGui::Text("Skin");
-		//getallfiles or champ
-		//skn
-		//skl
+		ImGui::Checkbox("Show Skeleton", &showskl);
 		for (uint32_t i = 0; i < myskn.Meshes.size(); i++)
 		{
 			ImGui::Text(myskn.Meshes[i].Name.c_str());
@@ -803,7 +941,21 @@ int main()
 		ListBox("List", &nowanm, pathsanm);
 		ImGui::End();
 
-		glm::mat4 mvp = computeMatricesFromInputs(trans, yaw, pitch, myskn.center);
+		fseek(fp, lineptrdds, 0);
+		for (uint32_t i = 0; i < myskn.Meshes.size(); i++)
+		{
+			auto it = nowshowddsv.find(myskn.Meshes[i].Name);
+			if (it != nowshowddsv.end())
+			{
+				fprintf_s(fp, "%s = %d %d\r\n", myskn.Meshes[i].Name.c_str(), nowdds[i], showmesh[i]);
+			}
+		}
+		fseek(fp, lineptrconf, 0);
+		fprintf_s(fp, "anmlist = %d\r\n", nowanm);
+		fprintf_s(fp, "showskl = %d\r\n", showskl);
+		fprintf_s(fp, "playanm = %d\r\n", playanm);
+		fprintf_s(fp, "jumpnext = %d\r\n", jumpnext);
+		fprintf_s(fp, "gotostart = %d", gotostart);
 
 		bool dur = Time > myanm[nowanm].Duration;
 		if (playanm && !dur)
@@ -820,16 +972,18 @@ int main()
 
 		SetupAnimation(&BoneTransforms, Time, &myanm[nowanm], &myskl);
 
+		glm::mat4 mvp = computeMatricesFromInputs(trans, yaw, pitch, myskn.center);
+
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-		glUseProgram(shaderidone);
+		glUseProgram(shaderidmap);
 		glUniform1i(texrefe, idone - 1);
 		glBindVertexArray(vertexarrayplaneBuffer);
 		glUniformMatrix4fv(mvprefe, 1, GL_FALSE, (float*)&mvp);
 		glDrawElements(GL_TRIANGLES, sizeof(planebufindex) / sizeof(planebufindex[0]), GL_UNSIGNED_INT, 0);
 		glBindVertexArray(0);
 
-		glUseProgram(shaderidtwo);
+		glUseProgram(shaderidmodel);
 		glBindVertexArray(vertexarrayBuffer);
 		glUniformMatrix4fv(mvprefet, 1, GL_FALSE, (float*)&mvp);
 		glUniformMatrix4fv(bonerefet, BoneTransforms.size(), GL_FALSE, (float*)&BoneTransforms[0]);
@@ -843,10 +997,49 @@ int main()
 			}
 		}
 
+		if (showskl)
+		{
+			uint32_t k = 0;
+			for (size_t i = 0; i < myskl.Bones.size(); i++)
+			{
+				int16_t parentid = myskl.Bones[i].ParentID;
+				if (parentid != -1)
+				{
+					lines[k++] = BoneTransforms[i] * myskl.Bones[i].GlobalMatrix * glm::vec4(1.f);
+					lines[k++] = BoneTransforms[parentid] * myskl.Bones[parentid].GlobalMatrix * glm::vec4(1.f);
+				}
+			}
+
+			for (uint32_t i = 0; i < BoneTransforms.size(); i++)
+				joints[i] = BoneTransforms[i] * myskl.Bones[i].GlobalMatrix * glm::vec4(1.f);
+
+			glDisable(GL_DEPTH_TEST);
+			glUseProgram(shaderidline);
+			glUniform1i(colorrefe, 0);
+			glUniformMatrix4fv(mvprefel, 1, GL_FALSE, (float*)&mvp);
+
+			glBindVertexArray(vertexarraylineBuffer);
+			glBindBuffer(GL_ARRAY_BUFFER, vertexlineBuffer);
+			glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(glm::vec4) * lines.size(), lines.data());
+			glDrawArrays(GL_LINES, 0, lines.size());
+			glBindVertexArray(0);
+
+			glPointSize(3.f);
+			glUniform1i(colorrefe, 1);
+			glBindVertexArray(vertexarrayjointBuffer);
+			glBindBuffer(GL_ARRAY_BUFFER, vertexjointBuffer);
+			glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(glm::vec4) * joints.size(), joints.data());
+			glDrawArrays(GL_POINTS, 0, joints.size());
+			glBindVertexArray(0);
+			glEnable(GL_DEPTH_TEST);
+		}
+
 		ImGui::Render();
 		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 		SwapBuffers(gldc);
 	}
+
+	fclose(fp);
 
 	ImGui_ImplOpenGL3_Shutdown();
 	wglDeleteContext(gl33_context);
