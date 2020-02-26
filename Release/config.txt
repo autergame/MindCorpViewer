@@ -19,4 +19,4 @@ anmlist = 2
 showskl = 1
 playanm = 0
 jumpnext = 0
-gotostart = 11
+gotostart = 1
