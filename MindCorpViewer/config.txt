@@ -1,10 +1,10 @@
 #anm folder, skn and skl file
 -file-init-
 anm = animations
-skn = mordekaiser_base.skn
-skl = mordekaiser_base.skl
+skn = Mordekaiser_Skin06.PIE_C_10_6.skn
+skl = Mordekaiser_Skin06.PIE_C_10_6.skl
 
-#dds for meshes
+#order dds for meshes
 -dds-init-
 Mordekaiser_Base_Mat = 3 1
 Mace = 2 1
@@ -13,10 +13,10 @@ Crown = 0 0
 Guitar = 1 0
 Poro_ShadowIsles_Mat = 4 0
 
-#animation selected in list
+#configurations 
 -config-init-
-anmlist = 2
-showskl = 1
-playanm = 0
+anmlist = 0
+showskl = 0
+playanm = 1
 jumpnext = 0
-gotostart = 11
+gotostart = 1

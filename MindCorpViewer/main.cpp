@@ -455,6 +455,7 @@ int main()
 			lineptrconf = lineptrtemp;
 			continue;
 		}
+
 		if (fileinit)
 		{
 			char* type = new char[6];
@@ -872,6 +873,7 @@ int main()
 	double Lastedtime = 0;
 	float yaw = 90.f, pitch = 70.f;
 
+	bool setupanm = true;
 	float Time = 0.f;
 	float speedanm = 1.f;
 	int* nowdds = (int*)calloc(myskn.Meshes.size(), sizeof(int));
@@ -885,6 +887,11 @@ int main()
 		{
 			nowdds[i] = it->second.first;
 			showmesh[i] = it->second.second;
+		}
+		else
+		{
+			std::pair<int, bool> paird(0, 1);
+			nowshowddsv[myskn.Meshes[i].Name.c_str()] = paird;
 		}
 	}
 
@@ -933,6 +940,7 @@ int main()
 			ImGui::Checkbox(myskn.Meshes[i].Name.c_str(), &showmesh[i]);
 		}
 		ImGui::Text("Animation");
+		ImGui::Checkbox("Use Animation", &setupanm);
 		ImGui::Checkbox("Play/Stop", &playanm);
 		ImGui::Checkbox("Go To Start", &gotostart);
 		ImGui::Checkbox("Jump To Next", &jumpnext);
@@ -970,8 +978,14 @@ int main()
 				nowanm = 0;
 		}
 
-		SetupAnimation(&BoneTransforms, Time, &myanm[nowanm], &myskl);
-
+		if(setupanm)
+			SetupAnimation(&BoneTransforms, Time, &myanm[nowanm], &myskl);
+		else
+		{
+			for (uint32_t i = 0; i < BoneTransforms.size(); i++)
+				BoneTransforms[i] = glm::identity<glm::mat4>();
+		}
+			
 		glm::mat4 mvp = computeMatricesFromInputs(trans, yaw, pitch, myskn.center);
 
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
