@@ -46,8 +46,6 @@ wglChoosePixelFormatARB_type *wglChoosePixelFormatARB;
 #define WGL_FULL_ACCELERATION_ARB                 0x2027
 #define WGL_TYPE_RGBA_ARB                         0x202B
 
-//HDC hDC;
-//HWND hWnd;
 bool touch[256];
 float zoom = 700;
 bool active = true;
@@ -430,16 +428,16 @@ int main()
 	{
 		linenum++;		
 		lineptrtemp += strlen(line);
-		if (line[0] == '#' || line[0] == '\r' && line[1] == '\n')
+		if (line[0] == '#' || line[0] == '\n' || line[0] == '\r' && line[1] == '\n')
 			continue;
-		if (strcmp(line, "-file-init-\r\n") == 0)
+		if ((strcmp(line, "-file-init-\n") == 0) || (strcmp(line, "-file-init-\r\n") == 0))
 		{
 			fileinit = true;
 			ddsinit = false;
 			confinit = false;
 			continue;
 		}
-		else if (strcmp(line, "-dds-init-\r\n") == 0)
+		else if ((strcmp(line, "-dds-init-\n") == 0) || (strcmp(line, "-dds-init-\r\n") == 0))
 		{
 			ddsinit = true;
 			fileinit = false;
@@ -447,7 +445,7 @@ int main()
 			lineptrdds = lineptrtemp;
 			continue;
 		}
-		else if (strcmp(line, "-config-init-\r\n") == 0)
+		else if ((strcmp(line, "-config-init-\n") == 0) || (strcmp(line, "-config-init-\r\n") == 0))
 		{
 			confinit = true;
 			ddsinit = false;
