@@ -268,7 +268,7 @@ void fixbone(Skin* skn, Skeleton* skl)
 	{
 		for (uint32_t k = 0; k < 4; k++)
 		{
-			skn->BoneIndices[i][k] = skl->BoneIndices[skn->BoneIndices[i][k]];
+			skn->BoneIndices[i][k] = (float)skl->BoneIndices[(uint32_t)skn->BoneIndices[i][k]];
 		}
 	}
 }

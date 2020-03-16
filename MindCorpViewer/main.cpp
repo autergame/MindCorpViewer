@@ -475,7 +475,7 @@ int main()
 		else if (ddsinit)
 		{
 			int value = 0;
-			bool show = true;
+			int show = 1;
 			char* type = new char[256];
 			if (sscanf_s(line, "%s = %d %d", type, 255, &value, &show) != 3)
 			{
@@ -734,7 +734,7 @@ int main()
 		openanm(&temp, pathsanm[i].c_str());
 		myanm.push_back(temp);
 	}
-	if (nowanm > pathsanm.size())
+	if (nowanm > (int)pathsanm.size())
 		nowanm = 0;
 
 	std::vector<GLuint> mydds;
@@ -923,7 +923,7 @@ int main()
 		ImGui::NewFrame();
 
 		ImGui::SetNextWindowPos(ImVec2(4, 4), ImGuiCond_Once);
-		ImGui::SetNextWindowSize(ImVec2(0, nheight/2));
+		ImGui::SetNextWindowSize(ImVec2(0, (float)nheight/2.f));
 		ImGui::Begin("Main", 0, ImGuiWindowFlags_AlwaysAutoResize);
 		ImGui::Text("Skin");
 		ImGui::Checkbox("Show Skeleton", &showskl);

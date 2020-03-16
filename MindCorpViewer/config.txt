@@ -1,8 +1,8 @@
 #anm folder, skn and skl file
 -file-init-
 anm = animations
-skn = Mordekaiser_Skin06.PIE_C_10_6.skn
-skl = Mordekaiser_Skin06.PIE_C_10_6.skl
+skn = mordekaiser_base.skn
+skl = mordekaiser_base.skl
 
 #order dds for meshes
 -dds-init-

@@ -13,9 +13,10 @@ Tongue = 0 1
 L_Demon_Arm = 0 1
 R_Demon_Arm = 0 1
 
+#configurations 
 -config-init-
 anmlist = 2
-showskl = 1
+showskl = 0
 playanm = 0
 jumpnext = 0
 gotostart = 1
