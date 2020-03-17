@@ -890,25 +890,27 @@ int main()
 		ImGui::SliderFloat("Speed", &speedanm, 0.001f, 5.f);
 		ImGui::SliderFloat("Time", &Time, 0.001f, myanm[nowanm].Duration);
 		ListBox("List", &nowanm, pathsanm);
-		ImGui::End();
-
-		for (uint32_t i = 0; i < myskn.Meshes.size(); i++)
+		if (ImGui::Button("Save Configuration"))
 		{
-			auto it = nowshowddsv.find(myskn.Meshes[i].Name);
-			if (it != nowshowddsv.end())
+			for (uint32_t i = 0; i < myskn.Meshes.size(); i++)
 			{
-				char text[16];
-				sprintf_s(text, 16, "%d %d", nowdds[i], showmesh[i]);
-				ini.SetValue("TEXTURES", myskn.Meshes[i].Name.c_str(), text);
+				auto it = nowshowddsv.find(myskn.Meshes[i].Name);
+				if (it != nowshowddsv.end())
+				{
+					char text[16];
+					sprintf_s(text, 16, "%d %d", nowdds[i], showmesh[i]);
+					ini.SetValue("TEXTURES", myskn.Meshes[i].Name.c_str(), text);
+				}
 			}
+			ini.SetLongValue("CONFIG", "anmlist", nowanm);
+			ini.SetBoolValue("CONFIG", "showskl", showskl);
+			ini.SetBoolValue("CONFIG", "playanm", playanm);
+			ini.SetBoolValue("CONFIG", "jumpnext", jumpnext);
+			ini.SetBoolValue("CONFIG", "gotostart", gotostart);
+			ini.SetBoolValue("CONFIG", "showground", showground);
+			ini.SaveFile("config.ini");
 		}
-		ini.SetLongValue("CONFIG", "anmlist", nowanm);
-		ini.SetBoolValue("CONFIG", "showskl", showskl);
-		ini.SetBoolValue("CONFIG", "playanm", playanm);
-		ini.SetBoolValue("CONFIG", "jumpnext", jumpnext);
-		ini.SetBoolValue("CONFIG", "gotostart", gotostart);
-		ini.SetBoolValue("CONFIG", "showground", showground);
-		ini.SaveFile("config.ini");
+		ImGui::End();
 
 		bool dur = Time > myanm[nowanm].Duration;
 		if (playanm && !dur)
