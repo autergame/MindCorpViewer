@@ -59,11 +59,10 @@ int openskn(Skin *myskin, const char* filename)
 	fread(&myskin->Minor, sizeof(uint16_t), 1, fp); Offset += 2;
 
 	uint32_t SubMeshHeaderCount = 0;
-	fread(&SubMeshHeaderCount, sizeof(uint32_t), 1, fp); Offset += 4;
-
 	std::vector<SubMeshHeader> SubMeshHeaders;
 	if (myskin->Major > 0)
 	{
+		fread(&SubMeshHeaderCount, sizeof(uint32_t), 1, fp); Offset += 4;
 		for (uint32_t i = 0; i < SubMeshHeaderCount; i++)
 		{
 			SubMeshHeader Mesh;
@@ -167,14 +166,23 @@ int openskn(Skin *myskin, const char* filename)
 		}
 	}
 
-	myskin->Meshes.resize(SubMeshHeaderCount);
-	for (uint32_t i = 0; i < SubMeshHeaderCount; i++)
+	if (SubMeshHeaderCount > 0)
 	{
-		myskin->Meshes[i].Name = SubMeshHeaders[i].Name;
-		myskin->Meshes[i].Hash = FNV1Hash(SubMeshHeaders[i].Name);
+		myskin->Meshes.resize(SubMeshHeaderCount);
+		for (uint32_t i = 0; i < SubMeshHeaderCount; i++)
+		{
+			myskin->Meshes[i].Name = SubMeshHeaders[i].Name;
+			myskin->Meshes[i].Hash = FNV1Hash(SubMeshHeaders[i].Name);
 
-		myskin->Meshes[i].IndexCount = SubMeshHeaders[i].IndexCount;
-		myskin->Meshes[i].Indices = &myskin->Indices[SubMeshHeaders[i].IndexOffset];
+			myskin->Meshes[i].IndexCount = SubMeshHeaders[i].IndexCount;
+			myskin->Meshes[i].Indices = &myskin->Indices[SubMeshHeaders[i].IndexOffset];
+		}
+	}
+	else
+	{
+		myskin->Meshes.resize(1);
+		myskin->Meshes[0].IndexCount = IndexCount;
+		myskin->Meshes[0].Indices = &myskin->Indices[0];
 	}
 
 	printf("skn version %u %u was succesfully loaded: SubMeshHeaderCount: %d IndexCount: %d VertexCount: %d\n",
