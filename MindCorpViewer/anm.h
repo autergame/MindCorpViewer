@@ -293,7 +293,9 @@ int openanm(Animation *myskin, const char* filename)
 		fread(&BoneCount, sizeof(uint32_t), 1, fp); Offset += 4;
 		fread(&FrameCount, sizeof(uint32_t), 1, fp); Offset += 4;
 
-		fread(&myskin->FPS, sizeof(float), 1, fp); Offset += 4;
+		int fps;
+		fread(&fps, sizeof(float), 1, fp); Offset += 4;
+		myskin->FPS = (float)fps;
 
 		float FrameDelay = 1.0f / myskin->FPS;
 		myskin->Duration = FrameDelay * FrameCount;
@@ -302,7 +304,7 @@ int openanm(Animation *myskin, const char* filename)
 		myskin->Bones.resize(BoneCount);
 		for (uint32_t i = 0; i < BoneCount; ++i)
 		{
-			fread(Name, sizeof(char), 32, fp);
+			fread(Name, sizeof(char), 32, fp); Offset += 32;
 			myskin->Bones[i].Hash = StringToHash(Name);
 
 			Offset += 4;

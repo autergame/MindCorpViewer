@@ -13,10 +13,12 @@
 #include <bitset>
 #include <string>
 #include <vector>
+#include <stdio.h>
 #include <map>
 #include "skn.h"
 #include "skl.h"
 #include "anm.h"
+#include "ini.h"
 
 typedef HGLRC WINAPI wglCreateContextAttribsARB_type(HDC hdc, HGLRC hShareContext,
 	const int *attribList);
@@ -404,106 +406,37 @@ int main()
 	QueryPerformanceFrequency(&Frequencye);
 	QueryPerformanceCounter(&Starte);
 
-	int nowanm = 0;
-	bool showskl = true;
-	bool playanm = false;
-	bool jumpnext = false;
-	bool gotostart = true;
-	char* anmf = new char[256];
-	char* sknf = new char[256];
-	char* sklf = new char[256];
+	CSimpleIniA ini;
+	ini.SetUnicode();
+	ini.LoadFile("config.ini");
+
+	char* anmf = _strdup(ini.GetValue("PATHS", "anm"));
+	char* sknf = _strdup(ini.GetValue("PATHS", "skn"));
+	char* sklf = _strdup(ini.GetValue("PATHS", "skl"));
+
+	CSimpleIniA::TNamesDepend keys;
+	CSimpleIniA::TNamesDepend::iterator itkey;
 	std::map<std::string, std::pair<int, bool>> nowshowddsv;
-
-	FILE *fp;
-	fopen_s(&fp, "config.txt", "rb+");
-	char line[256];
-	int linenum = 0;
-	int lineptrdds = 0;
-	int lineptrconf = 0;
-	int lineptrtemp = 0;
-	bool ddsinit = false;
-	bool confinit = false;
-	bool fileinit = false;
-	while (fgets(line, 256, fp) != NULL)
+	ini.GetAllKeys("TEXTURES", keys);
+	if(!keys.empty())
 	{
-		linenum++;		
-		lineptrtemp += strlen(line);
-		if (line[0] == '#' || line[0] == '\n' || line[0] == '\r' && line[1] == '\n')
-			continue;
-		if ((strcmp(line, "-file-init-\n") == 0) || (strcmp(line, "-file-init-\r\n") == 0))
+		for (itkey = keys.begin(); itkey != keys.end(); ++itkey) 
 		{
-			fileinit = true;
-			ddsinit = false;
-			confinit = false;
-			continue;
-		}
-		else if ((strcmp(line, "-dds-init-\n") == 0) || (strcmp(line, "-dds-init-\r\n") == 0))
-		{
-			ddsinit = true;
-			fileinit = false;
-			confinit = false;
-			lineptrdds = lineptrtemp;
-			continue;
-		}
-		else if ((strcmp(line, "-config-init-\n") == 0) || (strcmp(line, "-config-init-\r\n") == 0))
-		{
-			confinit = true;
-			ddsinit = false;
-			fileinit = false;
-			lineptrconf = lineptrtemp;
-			continue;
-		}
-
-		if (fileinit)
-		{
-			char* type = new char[6];
-			char* value = new char[256];
-			if (sscanf_s(line, "%s = %s", type, 6, value, 255) != 2)
-			{
-				fprintf(stderr, "Syntax error, line %d\n", linenum);
-				continue;
-			}
-			if (strcmp(type, "anm") == 0)
-				anmf = value;
-			else if (strcmp(type, "skn") == 0)
-				sknf = value;
-			else if (strcmp(type, "skl") == 0)
-				sklf = value;
-		}
-		else if (ddsinit)
-		{
-			int value = 0;
-			int show = 1;
-			char* type = new char[256];
-			if (sscanf_s(line, "%s = %d %d", type, 255, &value, &show) != 3)
-			{
-				fprintf(stderr, "Syntax error, line %d\n", linenum);
-				continue;
-			}
+			char *next_token;
+			char* line = _strdup(ini.GetValue("TEXTURES", itkey->pItem));
+			int value = atoi(strtok_s(line, " ", &next_token));
+			bool show = atoi(strtok_s(NULL, " ", &next_token));
 			std::pair<int, bool> paird(value, show);
-			nowshowddsv[type] = paird;
-		}
-		else if (confinit)
-		{
-			int value = 0;
-			char* type = new char[256];
-			if (sscanf_s(line, "%s = %d", type, 255, &value) != 2)
-			{
-				fprintf(stderr, "Syntax error, line %d\n", linenum);
-				continue;
-			}
-			if (strcmp(type, "anmlist") == 0)
-				nowanm = value;
-			else if (strcmp(type, "showskl") == 0)
-				showskl = value;
-			else if (strcmp(type, "playanm") == 0)
-				playanm = value;
-			else if (strcmp(type, "jumpnext") == 0)
-				jumpnext = value;
-			else if (strcmp(type, "gotostart") == 0)
-				gotostart = value;
+			nowshowddsv[itkey->pItem] = paird;
 		}
 	}
+
+	int nowanm = ini.GetLongValue("CONFIG", "anmlist");
+	bool showskl = ini.GetBoolValue("CONFIG", "showskl");
+	bool playanm = ini.GetBoolValue("CONFIG", "playanm");
+	bool jumpnext = ini.GetBoolValue("CONFIG", "jumpnext");
+	bool gotostart = ini.GetBoolValue("CONFIG", "gotostart");
+	bool showground = ini.GetBoolValue("CONFIG", "showground");
 
 	WNDCLASS window_class;
 	window_class.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
@@ -893,6 +826,17 @@ int main()
 		}
 	}
 
+	std::map<std::string, std::pair<int, bool>>::iterator itdds;
+	for (itdds = nowshowddsv.begin(); itdds != nowshowddsv.end(); ++itdds)
+	{
+		bool find = false;
+		for (uint32_t i = 0; i < myskn.Meshes.size(); i++)
+			if (itdds->first.c_str() == myskn.Meshes[i].Name)
+				find = true;
+		if (find == false)
+			ini.Delete("TEXTURES", itdds->first.c_str());
+	}
+
 	MSG msg;
 	ShowWindow(window, TRUE);
 	UpdateWindow(window);
@@ -925,6 +869,7 @@ int main()
 		ImGui::Begin("Main", 0, ImGuiWindowFlags_AlwaysAutoResize);
 		ImGui::Text("Skin");
 		ImGui::Checkbox("Show Skeleton", &showskl);
+		ImGui::Checkbox("Show Ground", &showground);
 		for (uint32_t i = 0; i < myskn.Meshes.size(); i++)
 		{
 			ImGui::Text(myskn.Meshes[i].Name.c_str());
@@ -947,21 +892,23 @@ int main()
 		ListBox("List", &nowanm, pathsanm);
 		ImGui::End();
 
-		fseek(fp, lineptrdds, 0);
 		for (uint32_t i = 0; i < myskn.Meshes.size(); i++)
 		{
 			auto it = nowshowddsv.find(myskn.Meshes[i].Name);
 			if (it != nowshowddsv.end())
 			{
-				fprintf_s(fp, "%s = %d %d\r\n", myskn.Meshes[i].Name.c_str(), nowdds[i], showmesh[i]);
+				char text[16];
+				sprintf_s(text, 16, "%d %d", nowdds[i], showmesh[i]);
+				ini.SetValue("TEXTURES", myskn.Meshes[i].Name.c_str(), text);
 			}
 		}
-		fseek(fp, lineptrconf, 0);
-		fprintf_s(fp, "anmlist = %d\r\n", nowanm);
-		fprintf_s(fp, "showskl = %d\r\n", showskl);
-		fprintf_s(fp, "playanm = %d\r\n", playanm);
-		fprintf_s(fp, "jumpnext = %d\r\n", jumpnext);
-		fprintf_s(fp, "gotostart = %d", gotostart);
+		ini.SetLongValue("CONFIG", "anmlist", nowanm);
+		ini.SetBoolValue("CONFIG", "showskl", showskl);
+		ini.SetBoolValue("CONFIG", "playanm", playanm);
+		ini.SetBoolValue("CONFIG", "jumpnext", jumpnext);
+		ini.SetBoolValue("CONFIG", "gotostart", gotostart);
+		ini.SetBoolValue("CONFIG", "showground", showground);
+		ini.SaveFile("config.ini");
 
 		bool dur = Time > myanm[nowanm].Duration;
 		if (playanm && !dur)
@@ -985,15 +932,17 @@ int main()
 		}
 			
 		glm::mat4 mvp = computeMatricesFromInputs(trans, yaw, pitch, myskn.center);
-
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-		glUseProgram(shaderidmap);
-		glUniform1i(texrefe, idone - 1);
-		glBindVertexArray(vertexarrayplaneBuffer);
-		glUniformMatrix4fv(mvprefe, 1, GL_FALSE, (float*)&mvp);
-		glDrawElements(GL_TRIANGLES, sizeof(planebufindex) / sizeof(planebufindex[0]), GL_UNSIGNED_INT, 0);
-		glBindVertexArray(0);
+		if (showground)
+		{
+			glUseProgram(shaderidmap);
+			glUniform1i(texrefe, idone - 1);
+			glBindVertexArray(vertexarrayplaneBuffer);
+			glUniformMatrix4fv(mvprefe, 1, GL_FALSE, (float*)&mvp);
+			glDrawElements(GL_TRIANGLES, sizeof(planebufindex) / sizeof(planebufindex[0]), GL_UNSIGNED_INT, 0);
+			glBindVertexArray(0);
+		}
 
 		glUseProgram(shaderidmodel);
 		glBindVertexArray(vertexarrayBuffer);
@@ -1050,8 +999,6 @@ int main()
 		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 		SwapBuffers(gldc);
 	}
-
-	fclose(fp);
 
 	ImGui_ImplOpenGL3_Shutdown();
 	wglDeleteContext(gl33_context);

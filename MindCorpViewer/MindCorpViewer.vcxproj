@@ -184,6 +184,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="anm.h" />
+    <ClInclude Include="ini.h" />
     <ClInclude Include="skl.h" />
     <ClInclude Include="skn.h" />
   </ItemGroup>
