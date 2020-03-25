@@ -100,7 +100,6 @@ GLuint loadDDS(const char* filename)
 	fopen_s(&fp, filename, "rb");
 
 	uint32_t DDS = MAKEFOURCC('D', 'D', 'S', ' ');
-	uint32_t DXT1 = MAKEFOURCC('D', 'X', 'T', '1');
 	uint32_t DXT3 = MAKEFOURCC('D', 'X', 'T', '3');
 	uint32_t DXT5 = MAKEFOURCC('D', 'X', 'T', '5');
 
@@ -114,12 +113,8 @@ GLuint loadDDS(const char* filename)
 	DDS_HEADER Header;
 	fread(&Header, sizeof(DDS_HEADER), 1, fp);
 
-	uint32_t Format;
-	if (Header.ddspf.fourCC == DXT1)
-	{
-		Format = 0x83F1;
-	}
-	else if (Header.ddspf.fourCC == DXT3)
+	uint32_t Format = 0x83F1;
+	if (Header.ddspf.fourCC == DXT3)
 	{
 		Format = 0x83F2;
 	}
@@ -837,7 +832,7 @@ int main()
 			ini.Delete("TEXTURES", itdds->first.c_str());
 	}
 
-	MSG msg;
+	MSG msg{0};
 	ShowWindow(window, TRUE);
 	UpdateWindow(window);
 	HDC gldc = GetDC(window);

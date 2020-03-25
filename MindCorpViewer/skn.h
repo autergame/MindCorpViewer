@@ -5,34 +5,34 @@ uint32_t FNV1Hash(const std::string& a_String)
 	size_t Hash = 0x811c9dc5;
 	const char* Chars = a_String.c_str();
 	for (size_t i = 0; i < a_String.length(); i++)
-		Hash = ((Hash ^ tolower(Chars[i])) * 0x01000193) % 0x100000000;
+		Hash = (Hash ^ tolower(Chars[i])) * 0x01000193;
 	return Hash;
 }
 
 struct SubMeshHeader
 {
 	std::string Name = "";
-	uint32_t VertexOffset;
-	uint32_t VertexCount;
-	uint32_t IndexOffset;
-	uint32_t IndexCount;
+	uint32_t VertexOffset = 0;
+	uint32_t VertexCount = 0;
+	uint32_t IndexOffset = 0;
+	uint32_t IndexCount = 0;
 };
 
 struct Mesh
 {
-	GLuint texid;
+	GLuint texid = 0;
 	std::string Name;
-	uint32_t Hash;
-	uint16_t* Indices;
-	size_t IndexCount;
+	uint32_t Hash = 0;
+	uint16_t* Indices{0};
+	size_t IndexCount = 0;
 };
 
 class Skin
 {
 public:
-	uint16_t Major;
-	uint16_t Minor;
-	glm::vec3 center;
+	uint16_t Major = 0;
+	uint16_t Minor = 0;
+	glm::vec3 center = glm::vec3(0.f);
 	std::vector<glm::vec3> Positions;
 	std::vector<glm::vec2> UVs;
 	std::vector<glm::vec4> Weights;

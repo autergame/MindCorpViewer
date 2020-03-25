@@ -1,5 +1,12 @@
 #pragma once
 
+enum FrameDataType : uint8_t
+{
+	RotationType = 0,
+	TranslationType = 64,
+	ScaleType = 128
+};
+
 struct Boneanm
 {
 	template<typename T>
@@ -17,7 +24,7 @@ struct Boneanm
 	using RotationFrame = Frame<glm::quat>;
 	using ScaleFrame = Frame<glm::vec3>;
 
-	uint32_t Hash;
+	uint32_t Hash = 0;
 
 	std::vector<TranslationFrame> Translation;
 	std::vector<RotationFrame> Rotation;
@@ -27,7 +34,7 @@ struct Boneanm
 class Animation
 {
 public:
-	float FPS, Duration;
+	float FPS = 0, Duration = 0;
 	std::vector<Boneanm> Bones;
 };
 
@@ -45,7 +52,7 @@ glm::quat UncompressQuaternion(const uint16_t& t_DominantAxis, const uint16_t& a
 	float fz = sqrt(2.0f) * ((int)a_Z - 16384) / 32768.0f;
 	float fw = sqrt(1.0f - fx * fx - fy * fy - fz * fz);
 
-	glm::quat uq;
+	glm::quat uq = glm::quat(0.f, 0.f, 0.f, 1.f);
 
 	switch (t_DominantAxis)
 	{
@@ -197,14 +204,6 @@ int openanm(Animation *myskin, const char* filename)
 
 		for (int i = 0; i < EntryCount; ++i)
 		{
-			enum FrameDataType : uint8_t
-			{
-				RotationType = 0,
-				TranslationType = 64,
-				ScaleType = 128
-			};
-			static_assert(sizeof(FrameDataType) == sizeof(uint8_t), "cannot use FrameDataType as a standin for uint8_t!");
-
 			uint16_t CompressedTime;
 			fread(&CompressedTime, sizeof(uint16_t), 1, fp);
 

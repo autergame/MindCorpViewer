@@ -3,14 +3,14 @@
 struct Bone
 {
 	std::string Name;
-	uint32_t Hash;
+	uint32_t Hash = 0;
 
-	int16_t ID;
-	int16_t ParentID;
+	int16_t ID = 0;
+	int16_t ParentID = 0;
 
-	glm::mat4 LocalMatrix;
-	glm::mat4 InverseGlobalMatrix;
-	glm::mat4 GlobalMatrix;
+	glm::mat4 LocalMatrix = glm::mat4(1.f);
+	glm::mat4 InverseGlobalMatrix = glm::mat4(1.f);
+	glm::mat4 GlobalMatrix = glm::mat4(1.f);
 
 	Bone* Parent;
 	std::vector<Bone*> Children;
@@ -26,7 +26,7 @@ class Skeleton
 {
 public:
 	Type Type;
-	uint32_t Version;
+	uint32_t Version = 0;
 	std::vector<Bone> Bones;
 	std::vector<uint32_t> BoneIndices;
 };
