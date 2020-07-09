@@ -451,8 +451,8 @@ int main()
 		return 1;
 	}
 
-	int width = 1024, height = 600;
 	RECT rectScreen;
+	int width = 1024, height = 600;
 	HWND hwndScreen = GetDesktopWindow();
 	GetWindowRect(hwndScreen, &rectScreen);
 	int PosX = ((rectScreen.right - rectScreen.left) / 2 - width / 2);
@@ -551,11 +551,6 @@ int main()
 	wglChoosePixelFormatARB = (wglChoosePixelFormatARB_type*)wglGetProcAddress(
 		"wglChoosePixelFormatARB");
 
-	wglMakeCurrent(dummy_dc, 0);
-	wglDeleteContext(dummy_context);
-	ReleaseDC(dummy_window, dummy_dc);
-	DestroyWindow(dummy_window);
-
 	HDC real_dc = GetDC(window);
 
 	int pixel_format_attribs[] = {
@@ -568,7 +563,7 @@ int main()
 	  WGL_DEPTH_BITS_ARB,         24,
 	  WGL_STENCIL_BITS_ARB,       0,
 	  WGL_SAMPLE_BUFFERS_ARB,     GL_TRUE,
-	  WGL_SAMPLES_ARB, 2,
+	  WGL_SAMPLES_ARB,			  2,
 	  0
 	};
 
@@ -610,6 +605,9 @@ int main()
 		return 1;
 	}
 
+	glEnable(GL_BLEND);
+	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
 	glEnable(GL_MULTISAMPLE);
 	glEnable(GL_DEPTH_TEST);
 	glDepthFunc(GL_LESS);
@@ -617,7 +615,7 @@ int main()
 
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
-	ImGuiIO& io = ImGui::GetIO(); (void)io;
+	ImGuiIO& io = ImGui::GetIO();
 	io.IniFilename = "";
 	ImGui_ImplWin32_Init(window);
 	const char* glsl_version = "#version 130";
