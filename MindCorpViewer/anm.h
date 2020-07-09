@@ -1,3 +1,4 @@
+//author https://github.com/autergame
 #pragma once
 
 enum FrameDataType : uint8_t

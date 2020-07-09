@@ -1,4 +1,5 @@
 #version 330
+//author https://github.com/autergame
 
 layout (location = 0) in vec4 Positions;
 

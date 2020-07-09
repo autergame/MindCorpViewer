@@ -1,4 +1,5 @@
 #version 330
+//author https://github.com/autergame
 
 uniform int Color;
 

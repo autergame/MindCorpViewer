@@ -1,3 +1,4 @@
+//author https://github.com/autergame
 #include <glad/glad.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>

@@ -1,3 +1,4 @@
+//author https://github.com/autergame
 #pragma once
 
 uint32_t FNV1Hash(const std::string& a_String)

@@ -1,4 +1,5 @@
 #version 330
+//author https://github.com/autergame
 
 in vec2 UV;
 
