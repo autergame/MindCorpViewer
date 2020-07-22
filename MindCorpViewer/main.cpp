@@ -328,7 +328,7 @@ glm::mat4 computeMatricesFromInputs(glm::vec3 &trans, float &yaw, float &pitch, 
 	lastx = mousex;
 	lasty = mousey;
 
-	glm::mat4 viewmatrix = glm::lookAt(position * zoom, center, up) * glm::translate(trans);
+	glm::mat4 viewmatrix = glm::lookAt(position * zoom, center, up) * glm::translate(trans) * glm::scale(glm::vec3(-1.f, 1.f, 1.f));
 	return glm::perspective(glm::radians(45.f), (float)nwidth / (float)nheight, 0.1f, 10000.0f) * viewmatrix;
 }
 
@@ -515,8 +515,6 @@ int main()
 		return 1;
 	}
 
-	HDC dummy_dc = GetDC(dummy_window);
-
 	PIXELFORMATDESCRIPTOR pfd;
 	pfd.nSize = sizeof(pfd);
 	pfd.nVersion = 1;
@@ -526,6 +524,7 @@ int main()
 	pfd.iLayerType = PFD_MAIN_PLANE;
 	pfd.cDepthBits = 24;
 
+	HDC dummy_dc = GetDC(dummy_window);
 	int pixel_formate = ChoosePixelFormat(dummy_dc, &pfd);
 	if (!pixel_formate) {
 		printf("Failed to find a suitable pixel format.");
@@ -552,8 +551,6 @@ int main()
 	wglChoosePixelFormatARB = (wglChoosePixelFormatARB_type*)wglGetProcAddress(
 		"wglChoosePixelFormatARB");
 
-	HDC real_dc = GetDC(window);
-
 	int pixel_format_attribs[] = {
 	  WGL_DRAW_TO_WINDOW_ARB,     GL_TRUE,
 	  WGL_SUPPORT_OPENGL_ARB,     GL_TRUE,
@@ -570,6 +567,7 @@ int main()
 
 	int pixel_format;
 	UINT num_formats;
+	HDC real_dc = GetDC(window);
 	wglChoosePixelFormatARB(real_dc, pixel_format_attribs, 0, 1, &pixel_format, &num_formats);
 	if (!num_formats) {
 		printf("Failed to set the OpenGL 3.3 pixel format.");
@@ -608,7 +606,6 @@ int main()
 
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
 	glEnable(GL_MULTISAMPLE);
 	glEnable(GL_DEPTH_TEST);
 	glDepthFunc(GL_LESS);
@@ -616,11 +613,8 @@ int main()
 
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
-	ImGuiIO& io = ImGui::GetIO();
-	io.IniFilename = "";
 	ImGui_ImplWin32_Init(window);
-	const char* glsl_version = "#version 130";
-	ImGui_ImplOpenGL3_Init(glsl_version);
+	ImGui_ImplOpenGL3_Init("#version 130");
 	ImGui::StyleColorsDark();
 
 	GLuint shaderidmap = 0, shaderidline = 0, shaderidmodel = 0;
@@ -719,10 +713,10 @@ int main()
 	glBindVertexArray(0);
 
 	float planebufvertex[] = {
-		400.f, 0.f, 400.f, 1.f,1.f,
-		400.f, 0.f,-400.f, 1.f,0.f,
-	   -400.f, 0.f,-400.f, 0.f,0.f,
-	   -400.f, 0.f, 400.f, 0.f,1.f
+		500.f, 0.f, 500.f, 0.f,1.f,
+		500.f, 0.f,-500.f, 0.f,0.f,
+	   -500.f, 0.f,-500.f, 1.f,0.f,
+	   -500.f, 0.f, 500.f, 1.f,1.f
 	};
 
 	uint32_t planebufindex[] = {
@@ -974,7 +968,6 @@ int main()
 			glUseProgram(shaderidline);
 			glUniform1i(colorrefe, 0);
 			glUniformMatrix4fv(mvprefel, 1, GL_FALSE, (float*)&mvp);
-
 			glBindVertexArray(vertexarraylineBuffer);
 			glBindBuffer(GL_ARRAY_BUFFER, vertexlineBuffer);
 			glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(glm::vec4) * lines.size(), lines.data());
