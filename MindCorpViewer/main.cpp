@@ -51,8 +51,8 @@ wglChoosePixelFormatARB_type *wglChoosePixelFormatARB;
 
 bool touch[256];
 float zoom = 700;
+int width, height;
 bool active = true;
-int nwidth, nheight;
 float mousex = 0, mousey = 0;
 int omx = 0, omy = 0, mx = 0, my = 0, state;
 LARGE_INTEGER Frequencye, Starte;
@@ -178,10 +178,14 @@ GLuint loadShader(GLenum type, const char* filename)
 	return shader;
 }
 
-void linkProgram(GLuint &shaderid, GLuint vertexshader, GLuint fragmentshader)
+GLuint useshader(const char* vertexfile, const char* fragmentfile)
 {
-	GLint success;
-	shaderid = glCreateProgram();
+	GLint success = 0;
+	GLuint vertexshader = 0;
+	GLuint fragmentshader = 0;
+	vertexshader = loadShader(GL_VERTEX_SHADER, vertexfile);
+	fragmentshader = loadShader(GL_FRAGMENT_SHADER, fragmentfile);
+	GLuint shaderid = glCreateProgram();
 	glAttachShader(shaderid, vertexshader);
 	glAttachShader(shaderid, fragmentshader);
 	glLinkProgram(shaderid);
@@ -194,17 +198,9 @@ void linkProgram(GLuint &shaderid, GLuint vertexshader, GLuint fragmentshader)
 		printf("%s", infoLog);
 	}
 	glUseProgram(0);
-}
-
-void useshader(GLuint &shaderid, const char* vertexfile, const char* fragmentfile)
-{
-	GLuint vertexshader = 0;
-	GLuint fragmentshader = 0;
-	vertexshader = loadShader(GL_VERTEX_SHADER, vertexfile);
-	fragmentshader = loadShader(GL_FRAGMENT_SHADER, fragmentfile);
-	linkProgram(shaderid, vertexshader, fragmentshader);
 	glDeleteShader(vertexshader);
 	glDeleteShader(fragmentshader);
+	return shaderid;
 }
 
 void *GetAnyGLFuncAddress(const char *name)
@@ -290,7 +286,7 @@ glm::mat4 computeMatricesFromInputs(glm::vec3 &trans, float &yaw, float &pitch, 
 
 	if (state == 1)
 	{
-		if (mx > 0 && mx < nwidth && my > 0 && my < nheight && !ImGui::IsAnyWindowHovered() && !ImGui::IsAnyWindowFocused())
+		if (mx > 0 && mx < width && my > 0 && my < height && !ImGui::IsAnyWindowHovered() && !ImGui::IsAnyWindowFocused())
 		{
 			if (mousex != lastx)
 				yaw += mousex * .6f;
@@ -313,7 +309,7 @@ glm::mat4 computeMatricesFromInputs(glm::vec3 &trans, float &yaw, float &pitch, 
 
 	if (state == 2)
 	{
-		if (mx > 0 && mx < nwidth && my > 0 && my < nheight && !ImGui::IsAnyWindowHovered())
+		if (mx > 0 && mx < width && my > 0 && my < height && !ImGui::IsAnyWindowHovered())
 		{
 			if (mousex != lastx)
 			{
@@ -329,7 +325,7 @@ glm::mat4 computeMatricesFromInputs(glm::vec3 &trans, float &yaw, float &pitch, 
 	lasty = mousey;
 
 	glm::mat4 viewmatrix = glm::lookAt(position * zoom, center, up) * glm::translate(trans) * glm::scale(glm::vec3(-1.f, 1.f, 1.f));
-	return glm::perspective(glm::radians(45.f), (float)nwidth / (float)nheight, 0.1f, 10000.0f) * viewmatrix;
+	return glm::perspective(glm::radians(45.f), (float)width / (float)height, 0.1f, 10000.0f) * viewmatrix;
 }
 
 extern LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
@@ -342,8 +338,9 @@ LRESULT WINAPI WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 	switch (uMsg) 
 	{
 		case WM_SIZE:
-			glViewport(0, 0, LOWORD(lParam), HIWORD(lParam));
-			nwidth = LOWORD(lParam); nheight = HIWORD(lParam);
+			width = LOWORD(lParam); 
+			height = HIWORD(lParam);
+			glViewport(0, 0, width, height);	
 			PostMessage(hWnd, WM_PAINT, 0, 0);
 			break;
 
@@ -615,20 +612,18 @@ int main()
 	ImGui::CreateContext();
 	ImGui_ImplWin32_Init(window);
 	ImGui_ImplOpenGL3_Init("#version 130");
-	ImGui::StyleColorsDark();
-
-	GLuint shaderidmap = 0, shaderidline = 0, shaderidmodel = 0;
-	useshader(shaderidmap, "glsl/map.vert", "glsl/map.frag");
-	useshader(shaderidline, "glsl/line.vert", "glsl/line.frag");
-	useshader(shaderidmodel, "glsl/model.vert", "glsl/model.frag");
+	ImGui::StyleColorsDark(); 
 
 	GLuint idone = loadDDS("glsl/map.dds");
 	glActiveTexture(GL_TEXTURE0 + idone);
-	glBindTexture(GL_TEXTURE_2D, idone);
+
+	GLuint shaderidmap = useshader("glsl/map.vert", "glsl/model.frag");
+	GLuint shaderidline = useshader("glsl/line.vert", "glsl/line.frag");
+	GLuint shaderidmodel = useshader("glsl/model.vert", "glsl/model.frag");
 
 	glUseProgram(shaderidmap);
 	GLuint mvprefe = glGetUniformLocation(shaderidmap, "MVP");
-	GLuint texrefe = glGetUniformLocation(shaderidmap, "Diffuse");
+	glUniform1i(glGetUniformLocation(shaderidmap, "Diffuse"), idone - 1);
 
 	glUseProgram(shaderidline);
 	GLuint mvprefel = glGetUniformLocation(shaderidline, "MVP");
@@ -665,8 +660,9 @@ int main()
 
 	for (uint32_t i = 0; i < mydds.size(); i++)
 	{
-		glActiveTexture(GL_TEXTURE0 + mydds[i]);
 		glBindTexture(GL_TEXTURE_2D, mydds[i]);
+		glActiveTexture(GL_TEXTURE0 + mydds[i]);
+		mydds[i] = mydds[i] - 1;
 	}
 
 	uint32_t vertexarrayBuffer;
@@ -709,6 +705,39 @@ int main()
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexBuffer[i]);
 		glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(uint16_t) * myskn.Meshes[i].IndexCount, myskn.Meshes[i].Indices, GL_STATIC_DRAW);
 	}
+
+	glBindVertexArray(0);
+
+	float quadbufvertex[] = {
+		1.f,  1.f, 0.f, 1.f,1.f,
+		1.f, -1.f, 0.f, 1.f,0.f,
+	   -1.f, -1.f, 0.f, 0.f,0.f,
+	   -1.f,  1.f, 0.f, 0.f,1.f
+	};
+
+	uint32_t quadbufindex[] = {
+		0, 1, 3,
+		1, 2, 3
+	};
+
+	uint32_t vertexarrayquadBuffer;
+	glGenVertexArrays(1, &vertexarrayquadBuffer);
+	glBindVertexArray(vertexarrayquadBuffer);
+
+	uint32_t vertexquadBuffer;
+	glGenBuffers(1, &vertexquadBuffer);
+	glBindBuffer(GL_ARRAY_BUFFER, vertexquadBuffer);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(quadbufvertex), quadbufvertex, GL_STATIC_DRAW);
+
+	uint32_t indexquadBuffer;
+	glGenBuffers(1, &indexquadBuffer);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexquadBuffer);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(quadbufindex), quadbufindex, GL_STATIC_DRAW);
+
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
+	glEnableVertexAttribArray(1);
+	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
 
 	glBindVertexArray(0);
 
@@ -852,23 +881,20 @@ int main()
 		ImGui_ImplWin32_NewFrame();
 		ImGui::NewFrame();
 
-		ImGui::SetNextWindowPos(ImVec2(4, 4), ImGuiCond_Once);
-		ImGui::SetNextWindowSize(ImVec2(0, (float)nheight/2.f));
+		ImGui::SetNextWindowSize(ImVec2(0, (float)height/2.f));
 		ImGui::Begin("Main", 0, ImGuiWindowFlags_AlwaysAutoResize);
 		ImGui::Text("Skin");
 		ImGui::Checkbox("Show Skeleton", &showskl);
 		ImGui::Checkbox("Show Ground", &showground);
 		for (uint32_t i = 0; i < myskn.Meshes.size(); i++)
 		{
-			ImGui::Text(myskn.Meshes[i].Name.c_str());
 			ImGui::PushID(i);
+			ImGui::Text(myskn.Meshes[i].Name.c_str());
+			ImGui::Checkbox("Show model", &showmesh[i]);
 			ListBox("", &nowdds[i], pathsdds);
 			myskn.Meshes[i].texid = mydds[nowdds[i]];
+			ImGui::Image((void*)(myskn.Meshes[i].texid + 1), ImVec2(64, 64));
 			ImGui::PopID();
-		}
-		for (uint32_t i = 0; i < myskn.Meshes.size(); i++)
-		{
-			ImGui::Checkbox(myskn.Meshes[i].Name.c_str(), &showmesh[i]);
 		}
 		ImGui::Text("Animation");
 		ImGui::Checkbox("Use Animation", &setupanm);
@@ -927,7 +953,6 @@ int main()
 		if (showground)
 		{
 			glUseProgram(shaderidmap);
-			glUniform1i(texrefe, idone - 1);
 			glBindVertexArray(vertexarrayplaneBuffer);
 			glUniformMatrix4fv(mvprefe, 1, GL_FALSE, (float*)&mvp);
 			glDrawElements(GL_TRIANGLES, sizeof(planebufindex) / sizeof(planebufindex[0]), GL_UNSIGNED_INT, 0);
@@ -938,6 +963,7 @@ int main()
 		glBindVertexArray(vertexarrayBuffer);
 		glUniformMatrix4fv(mvprefet, 1, GL_FALSE, (float*)&mvp);
 		glUniformMatrix4fv(bonerefet, BoneTransforms.size(), GL_FALSE, (float*)&BoneTransforms[0]);
+		glEnable(GL_SAMPLE_ALPHA_TO_COVERAGE);
 		for (uint32_t i = 0; i < myskn.Meshes.size(); i++)
 		{
 			if (showmesh[i])
@@ -947,6 +973,7 @@ int main()
 				glDrawElements(GL_TRIANGLES, myskn.Meshes[i].IndexCount, GL_UNSIGNED_SHORT, 0);
 			}
 		}
+		glDisable(GL_SAMPLE_ALPHA_TO_COVERAGE);
 
 		if (showskl)
 		{
