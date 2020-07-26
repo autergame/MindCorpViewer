@@ -279,7 +279,7 @@ bool ListBox(const char* label, int* currIndex, std::vector<std::string>& values
 	return ImGui::Combo(label, currIndex, vector_getter, static_cast<void*>(&values), values.size());
 }
 
-glm::mat4 computeMatricesFromInputs(glm::vec3 &trans, float &yaw, float &pitch, glm::vec3 center)
+glm::mat4 computeMatricesFromInputs(glm::vec3 &trans, float &yaw, float &pitch)
 {
 	static float lastx = mousex;
 	static float lasty = mousey;
@@ -289,9 +289,9 @@ glm::mat4 computeMatricesFromInputs(glm::vec3 &trans, float &yaw, float &pitch, 
 		if (mx > 0 && mx < width && my > 0 && my < height && !ImGui::IsAnyWindowHovered() && !ImGui::IsAnyWindowFocused())
 		{
 			if (mousex != lastx)
-				yaw += mousex * .6f;
+				yaw += mousex * .5f;
 			if (mousey != lasty)
-				pitch -= mousey * .6f;
+				pitch -= mousey * .5f;
 		}
 
 		pitch = pitch > 179.f ? 179.f : pitch < 1.f ? pitch = 1.f : pitch;
@@ -313,18 +313,19 @@ glm::mat4 computeMatricesFromInputs(glm::vec3 &trans, float &yaw, float &pitch, 
 		{
 			if (mousex != lastx)
 			{
-				trans.x -= right.x * mousex;
-				trans.z -= right.z * mousex;
+				trans.x -= right.x * (mousex * .5f);
+				trans.z -= right.z * (mousex * .5f);
 			}
 			if (mousey != lasty)
-				trans.y -= mousey;
+				trans.y -= mousey * .5f;
 		}
 	}
 
 	lastx = mousex;
 	lasty = mousey;
 
-	glm::mat4 viewmatrix = glm::lookAt(position * zoom, center, up) * glm::translate(trans) * glm::scale(glm::vec3(-1.f, 1.f, 1.f));
+	glm::mat4 viewmatrix = glm::lookAt(position * zoom, glm::vec3(0.f, 0.f, 0.f), up);
+	viewmatrix = viewmatrix * glm::translate(trans) * glm::scale(glm::vec3(-1.f, 1.f, 1.f));
 	return glm::perspective(glm::radians(45.f), (float)width / (float)height, 0.1f, 10000.0f) * viewmatrix;
 }
 
@@ -360,8 +361,8 @@ LRESULT WINAPI WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			value = (int)(short)HIWORD(wParam);
 			if (!ImGui::IsAnyWindowHovered())
 			{
-				zoom -= value > 100 ? 100 : value < -100 ? -100 : value;
-				zoom = zoom > 3000.f ? 3000.f : zoom < 100.f ? 100.f : zoom;
+				zoom -= value > 50 ? 50 : value < -50 ? -50 : value;
+				zoom = zoom > 3000.f ? 3000.f : zoom < 10.f ? 10.f : zoom;
 			}
 			break;
 
@@ -558,7 +559,7 @@ int main()
 	  WGL_DEPTH_BITS_ARB,         24,
 	  WGL_STENCIL_BITS_ARB,       0,
 	  WGL_SAMPLE_BUFFERS_ARB,     GL_TRUE,
-	  WGL_SAMPLES_ARB,			  2,
+	  WGL_SAMPLES_ARB,			  4,
 	  0
 	};
 
@@ -640,9 +641,10 @@ int main()
 	openskl(&myskl, sklf);
 	fixbone(&myskn, &myskl);
 
+	size_t i;
 	std::vector<Animation> myanm;
 	std::vector<std::string> pathsanm = ListDirectoryContents(anmf, true);
-	for (uint32_t i = 0; i < pathsanm.size(); i++)
+	for (i = 0; i < pathsanm.size(); i++)
 	{
 		Animation temp;
 		openanm(&temp, pathsanm[i].c_str());
@@ -653,12 +655,12 @@ int main()
 
 	std::vector<GLuint> mydds;
 	std::vector<std::string> pathsdds = ListDirectoryContents("", false);
-	for (uint32_t i = 0; i < pathsdds.size(); i++)
+	for (i = 0; i < pathsdds.size(); i++)
 	{
 		mydds.push_back(loadDDS(pathsdds[i].c_str()));
 	}
 
-	for (uint32_t i = 0; i < mydds.size(); i++)
+	for (i = 0; i < mydds.size(); i++)
 	{
 		glBindTexture(GL_TEXTURE_2D, mydds[i]);
 		glActiveTexture(GL_TEXTURE0 + mydds[i]);
@@ -699,7 +701,7 @@ int main()
 
 	std::vector<uint32_t> indexBuffer;
 	indexBuffer.resize(myskn.Meshes.size());
-	for (uint32_t i = 0; i < myskn.Meshes.size(); i++)
+	for (i = 0; i < myskn.Meshes.size(); i++)
 	{
 		glGenBuffers(1, &indexBuffer[i]);
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexBuffer[i]);
@@ -776,17 +778,17 @@ int main()
 
 	std::vector<glm::mat4> BoneTransforms;
 	BoneTransforms.resize(myskl.Bones.size());
-	for (uint32_t i = 0; i < BoneTransforms.size(); i++)
+	for (i = 0; i < BoneTransforms.size(); i++)
 		BoneTransforms[i] = glm::identity<glm::mat4>();
 
 	std::vector<glm::vec4> lines;
 	lines.resize(myskl.Bones.size() * 2);
-	for (uint32_t i = 0; i < lines.size(); i++)
+	for (i = 0; i < lines.size(); i++)
 		lines[i] = glm::vec4(1.f);
 
 	std::vector<glm::vec4> joints;
 	joints.resize(myskl.Bones.size());
-	for (uint32_t i = 0; i < joints.size(); i++)
+	for (i = 0; i < joints.size(); i++)
 		joints[i] = glm::vec4(1.f);
 
 	uint32_t vertexarraylineBuffer;
@@ -817,9 +819,9 @@ int main()
 
 	glBindVertexArray(0);
 
-	glm::vec3 trans(1.f);
-	double Lastedtime = 0;
 	float yaw = 90.f, pitch = 70.f;
+	glm::vec3 trans = -myskn.center;
+	float Deltatime = 0, Lastedtime = 0;
 
 	bool setupanm = true;
 	float Time = 0.f;
@@ -828,7 +830,7 @@ int main()
 	bool* showmesh = (bool*)calloc(myskn.Meshes.size(), sizeof(bool));
 	memset(showmesh, 1, myskn.Meshes.size() * sizeof(bool));
 
-	for (uint32_t i = 0; i < myskn.Meshes.size(); i++)
+	for (i = 0; i < myskn.Meshes.size(); i++)
 	{
 		auto it = nowshowddsv.find(myskn.Meshes[i].Name);
 		if (it != nowshowddsv.end())
@@ -847,7 +849,7 @@ int main()
 	for (itdds = nowshowddsv.begin(); itdds != nowshowddsv.end(); ++itdds)
 	{
 		bool find = false;
-		for (uint32_t i = 0; i < myskn.Meshes.size(); i++)
+		for (i = 0; i < myskn.Meshes.size(); i++)
 			if (itdds->first.c_str() == myskn.Meshes[i].Name)
 				find = true;
 		if (find == false)
@@ -855,6 +857,8 @@ int main()
 	}
 
 	MSG msg{0};
+	char tmp[64];
+	uint32_t sklk = 0;
 	ShowWindow(window, TRUE);
 	UpdateWindow(window);
 	HDC gldc = GetDC(window);
@@ -870,10 +874,9 @@ int main()
 		if (touch[VK_ESCAPE])
 			active = FALSE;
 
-		float Deltatime = float(GetTimeSinceStart() - Lastedtime);
-		Lastedtime = GetTimeSinceStart();
+		Deltatime = float(GetTimeSinceStart() - Lastedtime);
+		Lastedtime = (float)GetTimeSinceStart();
 
-		char tmp[64];
 		sprintf_s(tmp, "MindCorpLowUltraGameEngine - FPS: %1.0f", 1 / Deltatime);
 		SetWindowText(window, tmp);
 
@@ -886,14 +889,17 @@ int main()
 		ImGui::Text("Skin");
 		ImGui::Checkbox("Show Skeleton", &showskl);
 		ImGui::Checkbox("Show Ground", &showground);
-		for (uint32_t i = 0; i < myskn.Meshes.size(); i++)
+		for (i = 0; i < myskn.Meshes.size(); i++)
 		{
 			ImGui::PushID(i);
 			ImGui::Text(myskn.Meshes[i].Name.c_str());
 			ImGui::Checkbox("Show model", &showmesh[i]);
-			ListBox("", &nowdds[i], pathsdds);
-			myskn.Meshes[i].texid = mydds[nowdds[i]];
-			ImGui::Image((void*)(myskn.Meshes[i].texid + 1), ImVec2(64, 64));
+			if (showmesh[i])
+			{
+				ListBox("", &nowdds[i], pathsdds);
+				myskn.Meshes[i].texid = mydds[nowdds[i]];
+				ImGui::Image((void*)(myskn.Meshes[i].texid + 1), ImVec2(64, 64));
+			}
 			ImGui::PopID();
 		}
 		ImGui::Text("Animation");
@@ -906,7 +912,7 @@ int main()
 		ListBox("List", &nowanm, pathsanm);
 		if (ImGui::Button("Save Configuration"))
 		{
-			for (uint32_t i = 0; i < myskn.Meshes.size(); i++)
+			for (i = 0; i < myskn.Meshes.size(); i++)
 			{
 				auto it = nowshowddsv.find(myskn.Meshes[i].Name);
 				if (it != nowshowddsv.end())
@@ -943,11 +949,11 @@ int main()
 			SetupAnimation(&BoneTransforms, Time, &myanm[nowanm], &myskl);
 		else
 		{
-			for (uint32_t i = 0; i < BoneTransforms.size(); i++)
+			for (i = 0; i < BoneTransforms.size(); i++)
 				BoneTransforms[i] = glm::identity<glm::mat4>();
 		}
 			
-		glm::mat4 mvp = computeMatricesFromInputs(trans, yaw, pitch, myskn.center);
+		glm::mat4 mvp = computeMatricesFromInputs(trans, yaw, pitch);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
 		if (showground)
@@ -955,7 +961,7 @@ int main()
 			glUseProgram(shaderidmap);
 			glBindVertexArray(vertexarrayplaneBuffer);
 			glUniformMatrix4fv(mvprefe, 1, GL_FALSE, (float*)&mvp);
-			glDrawElements(GL_TRIANGLES, sizeof(planebufindex) / sizeof(planebufindex[0]), GL_UNSIGNED_INT, 0);
+			glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 			glBindVertexArray(0);
 		}
 
@@ -964,7 +970,7 @@ int main()
 		glUniformMatrix4fv(mvprefet, 1, GL_FALSE, (float*)&mvp);
 		glUniformMatrix4fv(bonerefet, BoneTransforms.size(), GL_FALSE, (float*)&BoneTransforms[0]);
 		glEnable(GL_SAMPLE_ALPHA_TO_COVERAGE);
-		for (uint32_t i = 0; i < myskn.Meshes.size(); i++)
+		for (i = 0; i < myskn.Meshes.size(); i++)
 		{
 			if (showmesh[i])
 			{
@@ -977,18 +983,18 @@ int main()
 
 		if (showskl)
 		{
-			uint32_t k = 0;
-			for (size_t i = 0; i < myskl.Bones.size(); i++)
+			sklk = 0;
+			for (i = 0; i < myskl.Bones.size(); i++)
 			{
 				int16_t parentid = myskl.Bones[i].ParentID;
 				if (parentid != -1)
 				{
-					lines[k++] = BoneTransforms[i] * myskl.Bones[i].GlobalMatrix * glm::vec4(1.f);
-					lines[k++] = BoneTransforms[parentid] * myskl.Bones[parentid].GlobalMatrix * glm::vec4(1.f);
+					lines[sklk++] = BoneTransforms[i] * myskl.Bones[i].GlobalMatrix * glm::vec4(1.f);
+					lines[sklk++] = BoneTransforms[parentid] * myskl.Bones[parentid].GlobalMatrix * glm::vec4(1.f);
 				}
 			}
 
-			for (uint32_t i = 0; i < BoneTransforms.size(); i++)
+			for (i = 0; i < BoneTransforms.size(); i++)
 				joints[i] = BoneTransforms[i] * myskl.Bones[i].GlobalMatrix * glm::vec4(1.f);
 
 			glDisable(GL_DEPTH_TEST);
