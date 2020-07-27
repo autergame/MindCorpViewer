@@ -1,4 +1,6 @@
 .vs/
+*.exp
+*.lib
 Debug/
 MindCorpViewer/Debug/
 MindCorpViewer/Release/
