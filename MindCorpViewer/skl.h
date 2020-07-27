@@ -75,8 +75,7 @@ uint32_t StringToHash(const std::string& s)
 
 int openskl(Skeleton *myskin, const char* filename)
 {
-	FILE *fp;
-	fopen_s(&fp, filename, "rb");
+	FILE *fp = fopen(filename, "rb");
 	
 	fseek(fp, 4, 0);
 	fread(&myskin->Type, sizeof(uint32_t), 1, fp);

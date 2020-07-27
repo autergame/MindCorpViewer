@@ -183,8 +183,8 @@
     <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="cJSON.h" />
     <ClInclude Include="anm.h" />
-    <ClInclude Include="ini.h" />
     <ClInclude Include="skl.h" />
     <ClInclude Include="skn.h" />
   </ItemGroup>

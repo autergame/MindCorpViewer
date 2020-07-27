@@ -1,0 +1,80 @@
+{
+	"showground": true,
+	"synchronizedtime": false,
+	"PATHS": [
+		{
+			"dds": "skinone",
+			"anm": "skinone\\animations",
+			"skn": "skinone\\kindred_skin03.pie_c_10_16.skn",
+			"skl": "skinone\\kindred_skin03.pie_c_10_16.skl"
+		}, 
+		{
+			"dds": "skintwo",
+			"anm": "skintwo\\animations",
+			"skn": "skintwo\\kindredwolf_skin03.pie_c_10_16.skn",
+			"skl": "skintwo\\kindredwolf_skin03.pie_c_10_16.skl"
+		}
+	],
+	"CONFIG": [
+		{
+			"setupanm": true,
+			"anmlist": 0,
+			"playanm": false,
+			"jumpnext": false,
+			"gotostart": true,
+			"wireframe": false,
+			"showskeleton": false
+		}, 
+		{
+			"setupanm": true,
+			"anmlist": 0,
+			"playanm": false,
+			"jumpnext": false,
+			"gotostart": true,
+			"wireframe": false,
+			"showskeleton": false
+		}
+	],
+	"TEXTURES": [
+		{
+			"name": "Body",
+			"texture": 2,
+			"show": true
+		}, 
+		{
+			"name": "Recallface",
+			"texture": 0,
+			"show": false
+		}, 
+		{
+			"name": "Maskface",
+			"texture": 2,
+			"show": true
+		}, 
+		{
+			"name": "Weapon",
+			"texture": 2,
+			"show": true
+		}, 
+		{
+			"name": "Props",
+			"texture": 0,
+			"show": true
+		}, 
+		{
+			"name": "SpiritWisp",
+			"texture": 1,
+			"show": true
+		}, 
+		{
+			"name": "Wolf_Body",
+			"texture": 0,
+			"show": true
+		}, 
+		{
+			"name": "Apple",
+			"texture": 0,
+			"show": false
+		}
+	]
+}

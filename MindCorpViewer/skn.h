@@ -44,9 +44,8 @@ public:
 
 int openskn(Skin *myskin, const char* filename)
 {
-	FILE *fp;
-	fopen_s(&fp, filename, "rb");
 	uint32_t Offset = 0;
+	FILE *fp = fopen(filename, "rb");
 
 	uint32_t Signature = 0;
 	fread(&Signature, sizeof(uint32_t), 1, fp); Offset += 4;

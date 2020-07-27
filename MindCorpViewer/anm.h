@@ -116,10 +116,9 @@ float UncompressTime(const uint16_t& a_CurrentTime, const float& a_AnimationLeng
 
 int openanm(Animation *myskin, const char* filename)
 {
-	FILE *fp;
-	fopen_s(&fp, filename, "rb");
-
 	uint32_t Offset = 0;
+	FILE *fp = fopen(filename, "rb");
+
 	char* Signature = (char*)calloc(9, sizeof(char));
 	fread(Signature, sizeof(uint8_t), 8, fp); Offset += 8;
 
@@ -388,7 +387,7 @@ int openanm(Animation *myskin, const char* filename)
 		Offset = FrameDataOffset;
 		fseek(fp, Offset, 0);
 
-		std::map<uint32_t, std::vector<FrameIndices>> BoneMap;
+		std::unordered_map<uint32_t, std::vector<FrameIndices>> BoneMap;
 		for (uint32_t i = 0; i < BoneCount; ++i)
 		{
 			for (uint32_t j = 0; j < FrameCount;++ j)

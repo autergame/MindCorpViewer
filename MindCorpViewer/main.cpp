@@ -1,4 +1,5 @@
 //author https://github.com/autergame
+#define _CRT_SECURE_NO_WARNINGS
 #include <glad/glad.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
@@ -9,17 +10,17 @@
 #include <imgui/imgui_impl_win32.h>
 #include <imgui/imgui_impl_opengl3.h>
 #include <imgui/imgui_internal.h>
+#include <unordered_map>
 #include <algorithm>
 #include <windows.h>
 #include <bitset>
 #include <string>
 #include <vector>
 #include <stdio.h>
-#include <map>
 #include "skn.h"
 #include "skl.h"
 #include "anm.h"
-#include "ini.h"
+#include "cJSON.h"
 
 typedef HGLRC WINAPI wglCreateContextAttribsARB_type(HDC hdc, HGLRC hShareContext,
 	const int *attribList);
@@ -53,6 +54,7 @@ bool touch[256];
 float zoom = 700;
 int width, height;
 bool active = true;
+size_t i = 0, k = 0;
 float mousex = 0, mousey = 0;
 int omx = 0, omy = 0, mx = 0, my = 0, state;
 LARGE_INTEGER Frequencye, Starte;
@@ -97,8 +99,7 @@ struct DDS_HEADER
 
 GLuint loadDDS(const char* filename)
 {
-	FILE *fp;
-	fopen_s(&fp, filename, "rb");
+	FILE *fp = fopen(filename, "rb");
 
 	uint32_t DDS = MAKEFOURCC('D', 'D', 'S', ' ');
 	uint32_t DXT3 = MAKEFOURCC('D', 'X', 'T', '3');
@@ -153,8 +154,7 @@ GLuint loadDDS(const char* filename)
 
 GLuint loadShader(GLenum type, const char* filename)
 {
-	FILE *fp;
-	fopen_s(&fp, filename, "rb");
+	FILE *fp = fopen(filename, "rb");
 	fseek(fp, 0, SEEK_END);
 	long fsize = ftell(fp);
 	fseek(fp, 0, SEEK_SET);
@@ -214,7 +214,7 @@ void *GetAnyGLFuncAddress(const char *name)
 	return p;
 }
 
-std::vector<std::string> ListDirectoryContents(const char *sDir, bool anm)
+std::vector<std::string> ListDirectoryContents(const char *sDir, char* ext)
 {
 	WIN32_FIND_DATA fdFile;
 	HANDLE hFind = NULL;
@@ -222,23 +222,11 @@ std::vector<std::string> ListDirectoryContents(const char *sDir, bool anm)
 	char sPath[2048];
 	std::vector<std::string> paths;
 
-	if (anm)
+	sprintf(sPath, "%s\\*.%s", sDir, ext);
+	if ((hFind = FindFirstFile(sPath, &fdFile)) == INVALID_HANDLE_VALUE)
 	{
-		sprintf_s(sPath, 2048, "%s\\*.anm", sDir);
-		if ((hFind = FindFirstFile(sPath, &fdFile)) == INVALID_HANDLE_VALUE)
-		{
-			printf("Path not found: [%s]\n", sPath);
-			return paths;
-		}
-	}
-	else
-	{
-		sprintf_s(sPath, 2048, "*.dds");
-		if ((hFind = FindFirstFile(sPath, &fdFile)) == INVALID_HANDLE_VALUE)
-		{
-			printf("File not found: [%s]\n", sPath);
-			return paths;
-		}
+		printf("Path not found: [%s]\n", sPath);
+		return paths;
 	}
 
 	do
@@ -247,16 +235,8 @@ std::vector<std::string> ListDirectoryContents(const char *sDir, bool anm)
 		{
 			if (!(fdFile.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY))
 			{
-				if (anm)
-				{
-					sprintf_s(sPath, 2048, "%s\\%s", sDir, fdFile.cFileName);
-					paths.push_back(sPath);
-				}
-				else
-				{
-					sprintf_s(sPath, 2048, "%s", fdFile.cFileName);
-					paths.push_back(sPath);
-				}
+				sprintf(sPath, "%s\\%s", sDir, fdFile.cFileName);
+				paths.push_back(sPath);
 			}
 		}
 	} while (FindNextFile(hFind, &fdFile));    
@@ -265,7 +245,7 @@ std::vector<std::string> ListDirectoryContents(const char *sDir, bool anm)
 	return paths;
 }
 
-static auto vector_getter = [](void* vec, int idx, const char** out_text)
+static auto vector_getter = [](void* vec, int idx, const char** out_text)->bool
 {
 	auto& vector = *static_cast<std::vector<std::string>*>(vec);
 	if (idx < 0 || idx >= static_cast<int>(vector.size())) { return false; }
@@ -361,8 +341,8 @@ LRESULT WINAPI WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 			value = (int)(short)HIWORD(wParam);
 			if (!ImGui::IsAnyWindowHovered())
 			{
-				zoom -= value > 50 ? 50 : value < -50 ? -50 : value;
-				zoom = zoom > 3000.f ? 3000.f : zoom < 10.f ? 10.f : zoom;
+				zoom -= value * .5f;
+				zoom = zoom < 1.f ? 1.f : zoom;
 			}
 			break;
 
@@ -400,37 +380,64 @@ int main()
 	QueryPerformanceFrequency(&Frequencye);
 	QueryPerformanceCounter(&Starte);
 
-	CSimpleIniA ini;
-	ini.SetUnicode();
-	ini.LoadFile("config.ini");
+	FILE* file = fopen("config.json", "rb");
+	fseek(file, 0, SEEK_END);
+	long fsize = ftell(file);
+	fseek(file, 0, SEEK_SET);
+	char* string = (char*)malloc(fsize + 1);
+	fread(string, fsize, 1, file);
 
-	char* anmf = _strdup(ini.GetValue("PATHS", "anm"));
-	char* sknf = _strdup(ini.GetValue("PATHS", "skn"));
-	char* sklf = _strdup(ini.GetValue("PATHS", "skl"));
+	cJSON* json = cJSON_ParseWithLength(string, fsize);
+	cJSON* paths = cJSON_GetObjectItemCaseSensitive(json, "PATHS");
+	cJSON* config = cJSON_GetObjectItemCaseSensitive(json, "CONFIG");
+	cJSON* textures = cJSON_GetObjectItemCaseSensitive(json, "TEXTURES");
 
-	CSimpleIniA::TNamesDepend keys;
-	CSimpleIniA::TNamesDepend::iterator itkey;
-	std::map<std::string, std::pair<int, bool>> nowshowddsv;
-	ini.GetAllKeys("TEXTURES", keys);
-	if(!keys.empty())
+	size_t pathsize = cJSON_GetArraySize(paths);
+
+	char** ddsf = (char**)calloc(pathsize, 1);
+	char** anmf = (char**)calloc(pathsize, 1);
+	char** sknf = (char**)calloc(pathsize, 1);
+	char** sklf = (char**)calloc(pathsize, 1);
+
+	cJSON* obj;
+	for (i = 0, obj = paths->child; obj != NULL; obj = obj->next, i++)
 	{
-		for (itkey = keys.begin(); itkey != keys.end(); ++itkey) 
-		{
-			char *next_token;
-			char* line = _strdup(ini.GetValue("TEXTURES", itkey->pItem));
-			int value = atoi(strtok_s(line, " ", &next_token));
-			bool show = atoi(strtok_s(NULL, " ", &next_token));
-			std::pair<int, bool> paird(value, show);
-			nowshowddsv[itkey->pItem] = paird;
-		}
+		ddsf[i] = cJSON_GetObjectItemCaseSensitive(obj, "dds")->valuestring;
+		anmf[i] = cJSON_GetObjectItemCaseSensitive(obj, "anm")->valuestring;
+		sknf[i] = cJSON_GetObjectItemCaseSensitive(obj, "skn")->valuestring;
+		sklf[i] = cJSON_GetObjectItemCaseSensitive(obj, "skl")->valuestring;
 	}
 
-	int nowanm = ini.GetLongValue("CONFIG", "anmlist");
-	bool showskl = ini.GetBoolValue("CONFIG", "showskl");
-	bool playanm = ini.GetBoolValue("CONFIG", "playanm");
-	bool jumpnext = ini.GetBoolValue("CONFIG", "jumpnext");
-	bool gotostart = ini.GetBoolValue("CONFIG", "gotostart");
-	bool showground = ini.GetBoolValue("CONFIG", "showground");
+	std::pair<int, bool> paird;
+	std::unordered_map<std::string, std::pair<size_t, bool>> nowshowddsv;
+	for (obj = textures->child; obj != NULL; obj = obj->next)
+	{
+		paird = { 
+			cJSON_GetObjectItemCaseSensitive(obj, "texture")->valueint,
+			cJSON_GetObjectItemCaseSensitive(obj, "show")->valueint 
+		};
+		nowshowddsv[cJSON_GetObjectItemCaseSensitive(obj, "name")->valuestring] = paird;
+	}
+
+	bool* setupanm = (bool*)calloc(pathsize, 1);
+	int* nowanm = (int*)calloc(pathsize, 4);
+	bool* playanm = (bool*)calloc(pathsize, 1);
+	bool* jumpnext = (bool*)calloc(pathsize, 1);
+	bool* gotostart = (bool*)calloc(pathsize, 1);
+	bool* wireframe = (bool*)calloc(pathsize, 1);
+	bool* showskeleton = (bool*)calloc(pathsize, 1);
+	bool showground = cJSON_GetObjectItemCaseSensitive(json, "showground")->valueint;
+	bool synchronizedtime = cJSON_GetObjectItemCaseSensitive(json, "synchronizedtime")->valueint;
+	for (i = 0, obj = config->child; obj != NULL; obj = obj->next, i++)
+	{
+		setupanm[i] = cJSON_GetObjectItemCaseSensitive(obj, "setupanm")->valueint;
+		nowanm[i] = cJSON_GetObjectItemCaseSensitive(obj, "anmlist")->valueint;
+		playanm[i] = cJSON_GetObjectItemCaseSensitive(obj, "playanm")->valueint;
+		jumpnext[i] = cJSON_GetObjectItemCaseSensitive(obj, "jumpnext")->valueint;
+		gotostart[i] = cJSON_GetObjectItemCaseSensitive(obj, "gotostart")->valueint;
+		wireframe[i] = cJSON_GetObjectItemCaseSensitive(obj, "wireframe")->valueint;
+		showskeleton[i] = cJSON_GetObjectItemCaseSensitive(obj, "showskeleton")->valueint;
+	}
 
 	WNDCLASS window_class;
 	window_class.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
@@ -611,6 +618,7 @@ int main()
 
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
+	ImGui::GetIO().IniFilename = NULL;
 	ImGui_ImplWin32_Init(window);
 	ImGui_ImplOpenGL3_Init("#version 130");
 	ImGui::StyleColorsDark(); 
@@ -635,119 +643,11 @@ int main()
 	GLuint bonerefet = glGetUniformLocation(shaderidmodel, "Bones");
 	GLuint texrefet = glGetUniformLocation(shaderidmodel, "Diffuse");
 
-	Skin myskn;
-	Skeleton myskl;
-	openskn(&myskn, sknf);
-	openskl(&myskl, sklf);
-	fixbone(&myskn, &myskl);
-
-	size_t i;
-	std::vector<Animation> myanm;
-	std::vector<std::string> pathsanm = ListDirectoryContents(anmf, true);
-	for (i = 0; i < pathsanm.size(); i++)
-	{
-		Animation temp;
-		openanm(&temp, pathsanm[i].c_str());
-		myanm.push_back(temp);
-	}
-	if (nowanm > (int)pathsanm.size())
-		nowanm = 0;
-
-	std::vector<GLuint> mydds;
-	std::vector<std::string> pathsdds = ListDirectoryContents("", false);
-	for (i = 0; i < pathsdds.size(); i++)
-	{
-		mydds.push_back(loadDDS(pathsdds[i].c_str()));
-	}
-
-	for (i = 0; i < mydds.size(); i++)
-	{
-		glBindTexture(GL_TEXTURE_2D, mydds[i]);
-		glActiveTexture(GL_TEXTURE0 + mydds[i]);
-		mydds[i] = mydds[i] - 1;
-	}
-
-	uint32_t vertexarrayBuffer;
-	glGenVertexArrays(1, &vertexarrayBuffer);
-	glBindVertexArray(vertexarrayBuffer);
-
-	uint32_t vertexBuffer;
-	glGenBuffers(1, &vertexBuffer);
-	glBindBuffer(GL_ARRAY_BUFFER, vertexBuffer);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec3) * myskn.Positions.size(), myskn.Positions.data(), GL_STATIC_DRAW);
-	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
-
-	uint32_t uvBuffer;
-	glGenBuffers(1, &uvBuffer);
-	glBindBuffer(GL_ARRAY_BUFFER, uvBuffer);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec2) * myskn.UVs.size(), myskn.UVs.data(), GL_STATIC_DRAW);
-	glEnableVertexAttribArray(1);
-	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, 0);
-
-	uint32_t boneindexBuffer;
-	glGenBuffers(1, &boneindexBuffer);
-	glBindBuffer(GL_ARRAY_BUFFER, boneindexBuffer);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec4) * myskn.BoneIndices.size(), myskn.BoneIndices.data(), GL_STATIC_DRAW);
-	glEnableVertexAttribArray(2);
-	glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, 0, 0);
-
-	uint32_t boneweightsBuffer;
-	glGenBuffers(1, &boneweightsBuffer);
-	glBindBuffer(GL_ARRAY_BUFFER, boneweightsBuffer);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec4) * myskn.Weights.size(), myskn.Weights.data(), GL_STATIC_DRAW);
-	glEnableVertexAttribArray(3);
-	glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, 0, 0);
-
-	std::vector<uint32_t> indexBuffer;
-	indexBuffer.resize(myskn.Meshes.size());
-	for (i = 0; i < myskn.Meshes.size(); i++)
-	{
-		glGenBuffers(1, &indexBuffer[i]);
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexBuffer[i]);
-		glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(uint16_t) * myskn.Meshes[i].IndexCount, myskn.Meshes[i].Indices, GL_STATIC_DRAW);
-	}
-
-	glBindVertexArray(0);
-
-	float quadbufvertex[] = {
-		1.f,  1.f, 0.f, 1.f,1.f,
-		1.f, -1.f, 0.f, 1.f,0.f,
-	   -1.f, -1.f, 0.f, 0.f,0.f,
-	   -1.f,  1.f, 0.f, 0.f,1.f
-	};
-
-	uint32_t quadbufindex[] = {
-		0, 1, 3,
-		1, 2, 3
-	};
-
-	uint32_t vertexarrayquadBuffer;
-	glGenVertexArrays(1, &vertexarrayquadBuffer);
-	glBindVertexArray(vertexarrayquadBuffer);
-
-	uint32_t vertexquadBuffer;
-	glGenBuffers(1, &vertexquadBuffer);
-	glBindBuffer(GL_ARRAY_BUFFER, vertexquadBuffer);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(quadbufvertex), quadbufvertex, GL_STATIC_DRAW);
-
-	uint32_t indexquadBuffer;
-	glGenBuffers(1, &indexquadBuffer);
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexquadBuffer);
-	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(quadbufindex), quadbufindex, GL_STATIC_DRAW);
-
-	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
-	glEnableVertexAttribArray(1);
-	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
-
-	glBindVertexArray(0);
-
 	float planebufvertex[] = {
-		500.f, 0.f, 500.f, 0.f,1.f,
-		500.f, 0.f,-500.f, 0.f,0.f,
-	   -500.f, 0.f,-500.f, 1.f,0.f,
-	   -500.f, 0.f, 500.f, 1.f,1.f
+	500.f, 0.f, 500.f, 0.f,1.f,
+	500.f, 0.f,-500.f, 0.f,0.f,
+   -500.f, 0.f,-500.f, 1.f,0.f,
+   -500.f, 0.f, 500.f, 1.f,1.f
 	};
 
 	uint32_t planebufindex[] = {
@@ -776,85 +676,161 @@ int main()
 
 	glBindVertexArray(0);
 
-	std::vector<glm::mat4> BoneTransforms;
-	BoneTransforms.resize(myskl.Bones.size());
-	for (i = 0; i < BoneTransforms.size(); i++)
-		BoneTransforms[i] = glm::identity<glm::mat4>();
+	std::vector<Skin> myskn(pathsize);
+	std::vector<Skeleton> myskl(pathsize);
 
-	std::vector<glm::vec4> lines;
-	lines.resize(myskl.Bones.size() * 2);
-	for (i = 0; i < lines.size(); i++)
-		lines[i] = glm::vec4(1.f);
+	std::vector<std::vector<Animation>> myanm(pathsize);
+	std::vector<std::vector<std::string>> pathsanm(pathsize);
 
-	std::vector<glm::vec4> joints;
-	joints.resize(myskl.Bones.size());
-	for (i = 0; i < joints.size(); i++)
-		joints[i] = glm::vec4(1.f);
+	std::vector<std::vector<GLuint>> mydds(pathsize);
+	std::vector<std::vector<std::string>> pathsdds(pathsize);
 
-	uint32_t vertexarraylineBuffer;
-	glGenVertexArrays(1, &vertexarraylineBuffer);
-	glBindVertexArray(vertexarraylineBuffer);
+	std::vector<uint32_t> vertexarrayBuffer(pathsize);
+	std::vector<uint32_t> vertexBuffer(pathsize);
+	std::vector<uint32_t> uvBuffer(pathsize);
+	std::vector<uint32_t> boneindexBuffer(pathsize);
+	std::vector<uint32_t> boneweightsBuffer(pathsize);
+	std::vector<std::vector<uint32_t>> indexBuffer(pathsize);
 
-	uint32_t vertexlineBuffer;
-	glGenBuffers(1, &vertexlineBuffer);
-	glBindBuffer(GL_ARRAY_BUFFER, vertexlineBuffer);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec4) * lines.size(), lines.data(), GL_DYNAMIC_DRAW);
+	std::vector<std::vector<glm::mat4>> BoneTransforms(pathsize);
+	std::vector<std::vector<glm::vec4>> lines(pathsize);
+	std::vector<std::vector<glm::vec4>> joints(pathsize);
 
-	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 0, 0);
+	std::vector<uint32_t> vertexarraylineBuffer(pathsize);
+	std::vector<uint32_t> vertexlineBuffer(pathsize);
+	std::vector<uint32_t> vertexarrayjointBuffer(pathsize);
+	std::vector<uint32_t> vertexjointBuffer(pathsize);
 
-	glBindVertexArray(0);
+	std::vector<float> Time(pathsize);
+	std::vector<float> speedanm(pathsize);
+	std::vector<std::vector<int>> nowdds(pathsize);
+	std::vector<std::vector<int>> showmesh(pathsize);
 
-	uint32_t vertexarrayjointBuffer;
-	glGenVertexArrays(1, &vertexarrayjointBuffer);
-	glBindVertexArray(vertexarrayjointBuffer);
+	for (k = 0; k < pathsize; k++)
+	{
+		speedanm[k] = 1.f;
 
-	uint32_t vertexjointBuffer;
-	glGenBuffers(1, &vertexjointBuffer);
-	glBindBuffer(GL_ARRAY_BUFFER, vertexjointBuffer);
-	glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec4) * joints.size(), joints.data(), GL_DYNAMIC_DRAW);
+		openskn(&myskn[k], sknf[k]);
+		openskl(&myskl[k], sklf[k]);
+		fixbone(&myskn[k], &myskl[k]);
 
-	glEnableVertexAttribArray(0);
-	glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 0, 0);
+		pathsanm[k] = ListDirectoryContents(anmf[k], "anm");
+		for (i = 0; i < pathsanm[k].size(); i++)
+		{
+			Animation temp;
+			openanm(&temp, pathsanm[k][i].c_str());
+			myanm[k].push_back(temp);
+		}
+		if (nowanm[k] > (int)pathsanm[k].size())
+			nowanm[k] = 0;
 
-	glBindVertexArray(0);
+		pathsdds[k] = ListDirectoryContents(ddsf[k], "dds");
+		for (i = 0; i < pathsdds[k].size(); i++)
+			mydds[k].push_back(loadDDS(pathsdds[k][i].c_str()));
 
+		for (i = 0; i < mydds[k].size(); i++)
+		{
+			glBindTexture(GL_TEXTURE_2D, mydds[k][i]);
+			glActiveTexture(GL_TEXTURE0 + mydds[k][i]);
+			mydds[k][i] = mydds[k][i] - 1;
+		}
+
+		glGenVertexArrays(1, &vertexarrayBuffer[k]);
+		glBindVertexArray(vertexarrayBuffer[k]);
+
+		glGenBuffers(1, &vertexBuffer[k]);
+		glBindBuffer(GL_ARRAY_BUFFER, vertexBuffer[k]);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec3) * myskn[k].Positions.size(), myskn[k].Positions.data(), GL_STATIC_DRAW);
+		glEnableVertexAttribArray(0);
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
+
+		glGenBuffers(1, &uvBuffer[k]);
+		glBindBuffer(GL_ARRAY_BUFFER, uvBuffer[k]);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec2) * myskn[k].UVs.size(), myskn[k].UVs.data(), GL_STATIC_DRAW);
+		glEnableVertexAttribArray(1);
+		glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, 0);
+
+		glGenBuffers(1, &boneindexBuffer[k]);
+		glBindBuffer(GL_ARRAY_BUFFER, boneindexBuffer[k]);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec4) * myskn[k].BoneIndices.size(), myskn[k].BoneIndices.data(), GL_STATIC_DRAW);
+		glEnableVertexAttribArray(2);
+		glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, 0, 0);
+
+		glGenBuffers(1, &boneweightsBuffer[k]);
+		glBindBuffer(GL_ARRAY_BUFFER, boneweightsBuffer[k]);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec4) * myskn[k].Weights.size(), myskn[k].Weights.data(), GL_STATIC_DRAW);
+		glEnableVertexAttribArray(3);
+		glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, 0, 0);
+
+		indexBuffer[k].resize(myskn[k].Meshes.size());
+		for (i = 0; i < myskn[k].Meshes.size(); i++)
+		{
+			glGenBuffers(1, &indexBuffer[k][i]);
+			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexBuffer[k][i]);
+			glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(uint16_t) * myskn[k].Meshes[i].IndexCount, myskn[k].Meshes[i].Indices, GL_STATIC_DRAW);
+		}
+
+		glBindVertexArray(0);
+
+		BoneTransforms[k].resize(myskl[k].Bones.size());
+		for (i = 0; i < BoneTransforms[k].size(); i++)
+			BoneTransforms[k][i] = glm::identity<glm::mat4>();
+
+		lines[k].resize(myskl[k].Bones.size() * 2);
+		for (i = 0; i < lines[k].size(); i++)
+			lines[k][i] = glm::vec4(1.f);
+
+		joints[k].resize(myskl[k].Bones.size());
+		for (i = 0; i < joints[k].size(); i++)
+			joints[k][i] = glm::vec4(1.f);
+
+		glGenVertexArrays(1, &vertexarraylineBuffer[k]);
+		glBindVertexArray(vertexarraylineBuffer[k]);
+
+		glGenBuffers(1, &vertexlineBuffer[k]);
+		glBindBuffer(GL_ARRAY_BUFFER, vertexlineBuffer[k]);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec4) * lines[k].size(), lines[k].data(), GL_DYNAMIC_DRAW);
+
+		glEnableVertexAttribArray(0);
+		glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 0, 0);
+
+		glBindVertexArray(0);
+
+		glGenVertexArrays(1, &vertexarrayjointBuffer[k]);
+		glBindVertexArray(vertexarrayjointBuffer[k]);
+
+		glGenBuffers(1, &vertexjointBuffer[k]);
+		glBindBuffer(GL_ARRAY_BUFFER, vertexjointBuffer[k]);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(glm::vec4) * joints[k].size(), joints[k].data(), GL_DYNAMIC_DRAW);
+
+		glEnableVertexAttribArray(0);
+		glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 0, 0);
+
+		glBindVertexArray(0);
+
+		for (i = 0; i < myskn[k].Meshes.size(); i++)
+		{
+			auto it = nowshowddsv.find(myskn[k].Meshes[i].Name);
+			if (it != nowshowddsv.end())
+			{
+				if (it->second.first < mydds[k][mydds[k].size() - 1])
+					nowdds[k].push_back(it->second.first);
+				else
+					nowdds[k].push_back(0);
+				showmesh[k].push_back(it->second.second);
+			}
+			else
+			{
+				nowdds[k].push_back(0);
+				showmesh[k].push_back(0);
+				nowshowddsv[myskn[k].Meshes[i].Name] = std::pair<int, bool>(0, 0);
+			}
+		}
+	}
+
+	glm::vec3 trans(1.f);
 	float yaw = 90.f, pitch = 70.f;
-	glm::vec3 trans = -myskn.center;
 	float Deltatime = 0, Lastedtime = 0;
-
-	bool setupanm = true;
-	float Time = 0.f;
-	float speedanm = 1.f;
-	int* nowdds = (int*)calloc(myskn.Meshes.size(), sizeof(int));
-	bool* showmesh = (bool*)calloc(myskn.Meshes.size(), sizeof(bool));
-	memset(showmesh, 1, myskn.Meshes.size() * sizeof(bool));
-
-	for (i = 0; i < myskn.Meshes.size(); i++)
-	{
-		auto it = nowshowddsv.find(myskn.Meshes[i].Name);
-		if (it != nowshowddsv.end())
-		{
-			nowdds[i] = it->second.first;
-			showmesh[i] = it->second.second;
-		}
-		else
-		{
-			std::pair<int, bool> paird(0, 1);
-			nowshowddsv[myskn.Meshes[i].Name.c_str()] = paird;
-		}
-	}
-
-	std::map<std::string, std::pair<int, bool>>::iterator itdds;
-	for (itdds = nowshowddsv.begin(); itdds != nowshowddsv.end(); ++itdds)
-	{
-		bool find = false;
-		for (i = 0; i < myskn.Meshes.size(); i++)
-			if (itdds->first.c_str() == myskn.Meshes[i].Name)
-				find = true;
-		if (find == false)
-			ini.Delete("TEXTURES", itdds->first.c_str());
-	}
 
 	MSG msg{0};
 	char tmp[64];
@@ -880,79 +856,6 @@ int main()
 		sprintf_s(tmp, "MindCorpLowUltraGameEngine - FPS: %1.0f", 1 / Deltatime);
 		SetWindowText(window, tmp);
 
-		ImGui_ImplOpenGL3_NewFrame();
-		ImGui_ImplWin32_NewFrame();
-		ImGui::NewFrame();
-
-		ImGui::SetNextWindowSize(ImVec2(0, (float)height/2.f));
-		ImGui::Begin("Main", 0, ImGuiWindowFlags_AlwaysAutoResize);
-		ImGui::Text("Skin");
-		ImGui::Checkbox("Show Skeleton", &showskl);
-		ImGui::Checkbox("Show Ground", &showground);
-		for (i = 0; i < myskn.Meshes.size(); i++)
-		{
-			ImGui::PushID(i);
-			ImGui::Text(myskn.Meshes[i].Name.c_str());
-			ImGui::Checkbox("Show model", &showmesh[i]);
-			if (showmesh[i])
-			{
-				ListBox("", &nowdds[i], pathsdds);
-				myskn.Meshes[i].texid = mydds[nowdds[i]];
-				ImGui::Image((void*)(myskn.Meshes[i].texid + 1), ImVec2(64, 64));
-			}
-			ImGui::PopID();
-		}
-		ImGui::Text("Animation");
-		ImGui::Checkbox("Use Animation", &setupanm);
-		ImGui::Checkbox("Play/Stop", &playanm);
-		ImGui::Checkbox("Go To Start", &gotostart);
-		ImGui::Checkbox("Jump To Next", &jumpnext);
-		ImGui::SliderFloat("Speed", &speedanm, 0.001f, 5.f);
-		ImGui::SliderFloat("Time", &Time, 0.001f, myanm[nowanm].Duration);
-		ListBox("List", &nowanm, pathsanm);
-		if (ImGui::Button("Save Configuration"))
-		{
-			for (i = 0; i < myskn.Meshes.size(); i++)
-			{
-				auto it = nowshowddsv.find(myskn.Meshes[i].Name);
-				if (it != nowshowddsv.end())
-				{
-					char text[16];
-					sprintf_s(text, 16, "%d %d", nowdds[i], showmesh[i]);
-					ini.SetValue("TEXTURES", myskn.Meshes[i].Name.c_str(), text);
-				}
-			}
-			ini.SetLongValue("CONFIG", "anmlist", nowanm);
-			ini.SetBoolValue("CONFIG", "showskl", showskl);
-			ini.SetBoolValue("CONFIG", "playanm", playanm);
-			ini.SetBoolValue("CONFIG", "jumpnext", jumpnext);
-			ini.SetBoolValue("CONFIG", "gotostart", gotostart);
-			ini.SetBoolValue("CONFIG", "showground", showground);
-			ini.SaveFile("config.ini");
-		}
-		ImGui::End();
-
-		bool dur = Time > myanm[nowanm].Duration;
-		if (playanm && !dur)
-			Time += Deltatime * speedanm;
-		if (dur)
-		{
-			if(gotostart)
-				Time = 0;
-			if(jumpnext)
-				nowanm += 1;
-			if (nowanm == myanm.size())
-				nowanm = 0;
-		}
-
-		if(setupanm)
-			SetupAnimation(&BoneTransforms, Time, &myanm[nowanm], &myskl);
-		else
-		{
-			for (i = 0; i < BoneTransforms.size(); i++)
-				BoneTransforms[i] = glm::identity<glm::mat4>();
-		}
-			
 		glm::mat4 mvp = computeMatricesFromInputs(trans, yaw, pitch);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -965,56 +868,176 @@ int main()
 			glBindVertexArray(0);
 		}
 
-		glUseProgram(shaderidmodel);
-		glBindVertexArray(vertexarrayBuffer);
-		glUniformMatrix4fv(mvprefet, 1, GL_FALSE, (float*)&mvp);
-		glUniformMatrix4fv(bonerefet, BoneTransforms.size(), GL_FALSE, (float*)&BoneTransforms[0]);
-		glEnable(GL_SAMPLE_ALPHA_TO_COVERAGE);
-		for (i = 0; i < myskn.Meshes.size(); i++)
-		{
-			if (showmesh[i])
-			{
-				glUniform1i(texrefet, myskn.Meshes[i].texid);
-				glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexBuffer[i]);
-				glDrawElements(GL_TRIANGLES, myskn.Meshes[i].IndexCount, GL_UNSIGNED_SHORT, 0);
-			}
-		}
-		glDisable(GL_SAMPLE_ALPHA_TO_COVERAGE);
+		ImGui_ImplOpenGL3_NewFrame();
+		ImGui_ImplWin32_NewFrame();
+		ImGui::NewFrame();
 
-		if (showskl)
+		ImGui::SetNextWindowPos(ImVec2(4, 4), ImGuiCond_Once);
+		ImGui::SetNextWindowSize(ImVec2(0, (float)height/2.f));
+		ImGui::Begin("Main", 0, ImGuiWindowFlags_AlwaysAutoResize);
+		ImGui::Checkbox("Show Ground", &showground);
+		ImGui::Checkbox("Synchronized Time", &synchronizedtime);
+		for (k = 0; k < pathsize; k++)
 		{
-			sklk = 0;
-			for (i = 0; i < myskl.Bones.size(); i++)
+			ImGui::PushID(k);
+			ImGui::Text("Skin");
+			ImGui::Checkbox("Wireframe", &wireframe[k]);
+			ImGui::Checkbox("Show Skeleton", &showskeleton[k]);
+			for (i = 0; i < myskn[k].Meshes.size(); i++)
 			{
-				int16_t parentid = myskl.Bones[i].ParentID;
-				if (parentid != -1)
+				ImGui::PushID(i);
+				ImGui::Text(myskn[k].Meshes[i].Name.c_str());
+				ImGui::Checkbox("Show model", (bool*)&showmesh[k][i]);
+				if (showmesh[k][i])
 				{
-					lines[sklk++] = BoneTransforms[i] * myskl.Bones[i].GlobalMatrix * glm::vec4(1.f);
-					lines[sklk++] = BoneTransforms[parentid] * myskl.Bones[parentid].GlobalMatrix * glm::vec4(1.f);
+					ListBox("", &nowdds[k][i], pathsdds[k]);
+					myskn[k].Meshes[i].texid = mydds[k][nowdds[k][i]];
+					ImGui::Image((void*)(myskn[k].Meshes[i].texid + 1), ImVec2(64, 64));
+				}
+				ImGui::PopID();
+			}
+			ImGui::Text("Animation");
+			ImGui::Checkbox("Use Animation", &setupanm[k]);
+			ImGui::Checkbox("Play / Stop", &playanm[k]);
+			ImGui::Checkbox("Go To Start", &gotostart[k]);
+			ImGui::Checkbox("Jump To Next", &jumpnext[k]);
+			ImGui::SliderFloat("Speed", &speedanm[k], 0.001f, 5.f);
+			ImGui::SliderFloat("Time", &Time[k], 0.001f, myanm[k][nowanm[k]].Duration);
+			ListBox("List", &nowanm[k], pathsanm[k]);
+			ImGui::PopID();
+		}
+		if (ImGui::Button("Save Configuration"))
+		{
+			cJSON* jsons = cJSON_CreateObject();
+			cJSON_AddItemToObject(jsons, "showground", cJSON_CreateBool(showground));
+			cJSON_AddItemToObject(jsons, "synchronizedtime", cJSON_CreateBool(synchronizedtime));
+
+			cJSON* pathss = cJSON_CreateArray();
+			cJSON* configs = cJSON_CreateArray();
+			cJSON* texturess = cJSON_CreateArray();
+			cJSON_AddItemToObject(jsons, "PATHS", pathss);
+			cJSON_AddItemToObject(jsons, "CONFIG", configs);
+			cJSON_AddItemToObject(jsons, "TEXTURES", texturess);
+
+			for (k = 0; k < pathsize; k++)
+			{
+				obj = cJSON_CreateObject();
+				cJSON_AddItemToObject(obj, "dds", cJSON_CreateString(ddsf[k]));
+				cJSON_AddItemToObject(obj, "anm", cJSON_CreateString(anmf[k]));
+				cJSON_AddItemToObject(obj, "skn", cJSON_CreateString(sknf[k]));
+				cJSON_AddItemToObject(obj, "skl", cJSON_CreateString(sklf[k]));
+				cJSON_AddItemToArray(pathss, obj);
+
+				obj = cJSON_CreateObject();
+				cJSON_AddItemToObject(obj, "setupanm", cJSON_CreateBool(setupanm[k]));
+				cJSON_AddItemToObject(obj, "anmlist", cJSON_CreateNumber(nowanm[k]));
+				cJSON_AddItemToObject(obj, "playanm", cJSON_CreateBool(playanm[k]));
+				cJSON_AddItemToObject(obj, "jumpnext", cJSON_CreateBool(jumpnext[k]));
+				cJSON_AddItemToObject(obj, "gotostart", cJSON_CreateBool(gotostart[k]));
+				cJSON_AddItemToObject(obj, "wireframe", cJSON_CreateBool(wireframe[k]));
+				cJSON_AddItemToObject(obj, "showskeleton", cJSON_CreateBool(showskeleton[k]));
+				cJSON_AddItemToArray(configs, obj);
+
+				for (i = 0; i < myskn[k].Meshes.size(); i++)
+				{
+					auto it = nowshowddsv.find(myskn[k].Meshes[i].Name);
+					if (it != nowshowddsv.end())
+					{
+						obj = cJSON_CreateObject();
+						cJSON_AddItemToObject(obj, "name", cJSON_CreateString(myskn[k].Meshes[i].Name.c_str()));
+						cJSON_AddItemToObject(obj, "texture", cJSON_CreateNumber(nowdds[k][i]));
+						cJSON_AddItemToObject(obj, "show", cJSON_CreateBool(showmesh[k][i]));
+						cJSON_AddItemToArray(texturess, obj);
+					}
 				}
 			}
 
-			for (i = 0; i < BoneTransforms.size(); i++)
-				joints[i] = BoneTransforms[i] * myskl.Bones[i].GlobalMatrix * glm::vec4(1.f);
+			file = fopen("config.json", "wb");
+			fprintf(file, cJSON_Print(jsons));
+		}
+		ImGui::End();	
+		for (k = 0; k < pathsize; k++)
+		{
+			bool dur = Time[k] > myanm[k][nowanm[k]].Duration;
+			if (playanm[k] && !dur)
+				Time[k] += Deltatime * speedanm[k];
+			if (dur)
+			{
+				if (gotostart[k])
+					Time[k] = 0;
+				if (jumpnext[k])
+					nowanm[k] += 1;
+				if (nowanm[k] == myanm[k].size())
+					nowanm[k] = 0;
+			}
 
-			glDisable(GL_DEPTH_TEST);
-			glUseProgram(shaderidline);
-			glUniform1i(colorrefe, 0);
-			glUniformMatrix4fv(mvprefel, 1, GL_FALSE, (float*)&mvp);
-			glBindVertexArray(vertexarraylineBuffer);
-			glBindBuffer(GL_ARRAY_BUFFER, vertexlineBuffer);
-			glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(glm::vec4) * lines.size(), lines.data());
-			glDrawArrays(GL_LINES, 0, lines.size());
-			glBindVertexArray(0);
+			if (synchronizedtime)
+				for (size_t o = 0; o < pathsize; o++)
+						Time[o] = Time[0];
 
-			glPointSize(3.f);
-			glUniform1i(colorrefe, 1);
-			glBindVertexArray(vertexarrayjointBuffer);
-			glBindBuffer(GL_ARRAY_BUFFER, vertexjointBuffer);
-			glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(glm::vec4) * joints.size(), joints.data());
-			glDrawArrays(GL_POINTS, 0, joints.size());
-			glBindVertexArray(0);
-			glEnable(GL_DEPTH_TEST);
+			if (setupanm[k])
+				SetupAnimation(&BoneTransforms[k], Time[k], &myanm[k][nowanm[k]], &myskl[k]);
+			else
+			{
+				for (i = 0; i < BoneTransforms[k].size(); i++)
+					BoneTransforms[k][i] = glm::identity<glm::mat4>();
+			}
+
+			glUseProgram(shaderidmodel);
+			glBindVertexArray(vertexarrayBuffer[k]);
+			glUniformMatrix4fv(mvprefet, 1, GL_FALSE, (float*)&mvp);
+			glUniformMatrix4fv(bonerefet, BoneTransforms[k].size(), GL_FALSE, (float*)&BoneTransforms[k][0]);
+			glEnable(GL_SAMPLE_ALPHA_TO_COVERAGE);
+			if(wireframe[k])
+				glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+			for (i = 0; i < myskn[k].Meshes.size(); i++)
+			{
+				if (showmesh[k][i])
+				{
+					glUniform1i(texrefet, myskn[k].Meshes[i].texid);
+					glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexBuffer[k][i]);
+					glDrawElements(GL_TRIANGLES, myskn[k].Meshes[i].IndexCount, GL_UNSIGNED_SHORT, 0);
+				}
+			}
+			if (wireframe[k])
+				glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+			glDisable(GL_SAMPLE_ALPHA_TO_COVERAGE);
+
+			if (showskeleton[k])
+			{
+				sklk = 0;
+				for (i = 0; i < myskl[k].Bones.size(); i++)
+				{
+					int16_t parentid = myskl[k].Bones[i].ParentID;
+					if (parentid != -1)
+					{
+						lines[k][sklk++] = BoneTransforms[k][i] * myskl[k].Bones[i].GlobalMatrix * glm::vec4(1.f);
+						lines[k][sklk++] = BoneTransforms[k][parentid] * myskl[k].Bones[parentid].GlobalMatrix * glm::vec4(1.f);
+					}
+				}
+
+				for (i = 0; i < BoneTransforms[k].size(); i++)
+					joints[k][i] = BoneTransforms[k][i] * myskl[k].Bones[i].GlobalMatrix * glm::vec4(1.f);
+
+				glDisable(GL_DEPTH_TEST);
+				glUseProgram(shaderidline);
+				glUniform1i(colorrefe, 0);
+				glUniformMatrix4fv(mvprefel, 1, GL_FALSE, (float*)&mvp);
+				glBindVertexArray(vertexarraylineBuffer[k]);
+				glBindBuffer(GL_ARRAY_BUFFER, vertexlineBuffer[k]);
+				glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(glm::vec4) * lines[k].size(), lines[k].data());
+				glDrawArrays(GL_LINES, 0, lines[k].size());
+				glBindVertexArray(0);
+
+				glPointSize(3.f);
+				glUniform1i(colorrefe, 1);
+				glBindVertexArray(vertexarrayjointBuffer[k]);
+				glBindBuffer(GL_ARRAY_BUFFER, vertexjointBuffer[k]);
+				glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(glm::vec4) * joints[k].size(), joints[k].data());
+				glDrawArrays(GL_POINTS, 0, joints[k].size());
+				glBindVertexArray(0);
+				glEnable(GL_DEPTH_TEST);
+			}
 		}
 
 		ImGui::Render();
@@ -1033,5 +1056,6 @@ int main()
 	DestroyWindow(window);
 	UnregisterClass("WGL_fdjhsklf", window_class.hInstance);
 
+	fclose(file);
 	return (int)msg.wParam;
 }
