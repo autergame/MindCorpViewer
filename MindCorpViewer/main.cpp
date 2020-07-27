@@ -236,7 +236,7 @@ std::vector<std::string> ListDirectoryContents(const char *sDir, char* ext)
 			if (!(fdFile.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY))
 			{
 				sprintf(sPath, "%s\\%s", sDir, fdFile.cFileName);
-				paths.push_back(sPath);
+				paths.emplace_back(sPath);
 			}
 		}
 	} while (FindNextFile(hFind, &fdFile));    
@@ -386,6 +386,7 @@ int main()
 	fseek(file, 0, SEEK_SET);
 	char* string = (char*)malloc(fsize + 1);
 	fread(string, fsize, 1, file);
+	fclose(file);
 
 	cJSON* json = cJSON_ParseWithLength(string, fsize);
 	cJSON* paths = cJSON_GetObjectItemCaseSensitive(json, "PATHS");
@@ -719,14 +720,14 @@ int main()
 		{
 			Animation temp;
 			openanm(&temp, pathsanm[k][i].c_str());
-			myanm[k].push_back(temp);
+			myanm[k].emplace_back(temp);
 		}
 		if (nowanm[k] > (int)pathsanm[k].size())
 			nowanm[k] = 0;
 
 		pathsdds[k] = ListDirectoryContents(ddsf[k], "dds");
 		for (i = 0; i < pathsdds[k].size(); i++)
-			mydds[k].push_back(loadDDS(pathsdds[k][i].c_str()));
+			mydds[k].emplace_back(loadDDS(pathsdds[k][i].c_str()));
 
 		for (i = 0; i < mydds[k].size(); i++)
 		{
@@ -814,15 +815,15 @@ int main()
 			if (it != nowshowddsv.end())
 			{
 				if (it->second.first < mydds[k][mydds[k].size() - 1])
-					nowdds[k].push_back(it->second.first);
+					nowdds[k].emplace_back(it->second.first);
 				else
-					nowdds[k].push_back(0);
-				showmesh[k].push_back(it->second.second);
+					nowdds[k].emplace_back(0);
+				showmesh[k].emplace_back(it->second.second);
 			}
 			else
 			{
-				nowdds[k].push_back(0);
-				showmesh[k].push_back(0);
+				nowdds[k].emplace_back(0);
+				showmesh[k].emplace_back(0);
 				nowshowddsv[myskn[k].Meshes[i].Name] = std::pair<int, bool>(0, 0);
 			}
 		}
@@ -954,6 +955,7 @@ int main()
 
 			file = fopen("config.json", "wb");
 			fprintf(file, cJSON_Print(jsons));
+			fclose(file);
 		}
 		ImGui::End();	
 		for (k = 0; k < pathsize; k++)
@@ -1056,6 +1058,5 @@ int main()
 	DestroyWindow(window);
 	UnregisterClass("WGL_fdjhsklf", window_class.hInstance);
 
-	fclose(file);
 	return (int)msg.wParam;
 }

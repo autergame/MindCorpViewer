@@ -52,6 +52,7 @@ int openskn(Skin *myskin, const char* filename)
 	if (Signature != 0x00112233)
 	{
 		printf("skn has no valid signature\n");
+		fclose(fp);
 		return 1;
 	}
 
@@ -76,7 +77,7 @@ int openskn(Skin *myskin, const char* filename)
 			fread(&Mesh.IndexOffset, sizeof(uint32_t), 1, fp); Offset += 4;
 			fread(&Mesh.IndexCount, sizeof(uint32_t), 1, fp); Offset += 4;
 
-			SubMeshHeaders.push_back(Mesh);
+			SubMeshHeaders.emplace_back(Mesh);
 		}
 	}
 
@@ -162,6 +163,7 @@ int openskn(Skin *myskin, const char* filename)
 		if (WeightError > 0.02f)
 		{
 			printf("WeightError\n");
+			fclose(fp);
 			return 1;
 		}
 	}
@@ -187,5 +189,6 @@ int openskn(Skin *myskin, const char* filename)
 
 	printf("skn version %u %u was succesfully loaded: SubMeshHeaderCount: %d IndexCount: %d VertexCount: %d\n",
 		myskin->Major, myskin->Minor, SubMeshHeaderCount, IndexCount, VertexCount);
+	fclose(fp);
 	return 0;
 }

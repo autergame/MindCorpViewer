@@ -125,6 +125,7 @@ int openanm(Animation *myskin, const char* filename)
 	if (memcmp(Signature, "r3d2anmd", 8) != 0 && memcmp(Signature, "r3d2canm", 8) != 0)
 	{
 		printf("anm has signature %s, which is not known by this application\n", Signature);
+		fclose(fp);
 		return 1;
 	}
 
@@ -280,7 +281,7 @@ int openanm(Animation *myskin, const char* filename)
 				BoneEntry.Scale.emplace_back(Time, Scale);
 			}
 
-			myskin->Bones.push_back(BoneEntry);
+			myskin->Bones.emplace_back(BoneEntry);
 		}
 	}
 	else if (Version == 3)
@@ -368,7 +369,7 @@ int openanm(Animation *myskin, const char* filename)
 			fread(&Vector.x, sizeof(float), 1, fp); Offset += 4;
 			fread(&Vector.y, sizeof(float), 1, fp); Offset += 4;
 			fread(&Vector.z, sizeof(float), 1, fp); Offset += 4;
-			TranslationOrScaleEntries.push_back(Vector);
+			TranslationOrScaleEntries.emplace_back(Vector);
 		}
 
 		Offset = RotationDataOffset;
@@ -381,7 +382,7 @@ int openanm(Animation *myskin, const char* filename)
 			fread(&RotationEntry.y, sizeof(float), 1, fp); Offset += 4;
 			fread(&RotationEntry.z, sizeof(float), 1, fp); Offset += 4;
 			fread(&RotationEntry.w, sizeof(float), 1, fp); Offset += 4;
-			RotationEntries.push_back(RotationEntry);
+			RotationEntries.emplace_back(RotationEntry);
 		}
 
 		Offset = FrameDataOffset;
@@ -403,7 +404,7 @@ int openanm(Animation *myskin, const char* filename)
 				Offset += 2;
 				fseek(fp, Offset, 0);
 
-				BoneMap[BoneHash].push_back(FrameIndexData);
+				BoneMap[BoneHash].emplace_back(FrameIndexData);
 			}
 		}
 
@@ -422,7 +423,7 @@ int openanm(Animation *myskin, const char* filename)
 				CurrentTime += FrameDelay;
 			}
 
-			myskin->Bones.push_back(Bone);
+			myskin->Bones.emplace_back(Bone);
 		}
 	}
 	else if (Version == 5)
@@ -468,7 +469,7 @@ int openanm(Animation *myskin, const char* filename)
 		{
 			glm::vec3 translationEntry;
 			fread(&translationEntry, sizeof(uint8_t), 12, fp); Offset += 12;
-			Translations.push_back(translationEntry);
+			Translations.emplace_back(translationEntry);
 		}
 
 		std::vector<std::bitset<48>> RotationEntries;
@@ -482,7 +483,7 @@ int openanm(Animation *myskin, const char* filename)
 		{
 			std::bitset<48> RotationEntry;
 			fread(&RotationEntry, sizeof(uint8_t), 6, fp); Offset += 6;
-			RotationEntries.push_back(RotationEntry);
+			RotationEntries.emplace_back(RotationEntry);
 		}
 
 		Offset = HashesOffset;
@@ -533,10 +534,12 @@ int openanm(Animation *myskin, const char* filename)
 	else
 	{
 		printf("anm has an unsupported version: %d\n", Version);
+		fclose(fp);
 		return 1;
 	}
 
 	printf("anm version %d was succesfully loaded: FPS: %f Duration: %f\n", Version, myskin->FPS, myskin->Duration);
+	fclose(fp);
 	return 0;
 }
 

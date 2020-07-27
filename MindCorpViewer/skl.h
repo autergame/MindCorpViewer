@@ -102,7 +102,7 @@ int openskl(Skeleton *myskin, const char* filename)
 			if (Bone.ParentID >= 0)
 			{
 				Bone.Parent = &myskin->Bones[Bone.ParentID];
-				Bone.Parent->Children.push_back(&Bone);
+				Bone.Parent->Children.emplace_back(&Bone);
 			}
 			else Bone.Parent = nullptr;
 
@@ -176,6 +176,7 @@ int openskl(Skeleton *myskin, const char* filename)
 			if (Bone.ID != i)
 			{
 				printf("skl noticed an unexpected ID value for bone %d: %d\n", i, Bone.ID);
+				fclose(fp);
 				return 1;
 			}
 
@@ -213,7 +214,7 @@ int openskl(Skeleton *myskin, const char* filename)
 
 			if (Bone.ParentID != -1)
 			{
-				myskin->Bones[Bone.ParentID].Children.push_back(&Bone);
+				myskin->Bones[Bone.ParentID].Children.emplace_back(&Bone);
 			}
 		}
 
@@ -225,7 +226,7 @@ int openskl(Skeleton *myskin, const char* filename)
 		{
 			uint16_t BoneIndex;
 			fread(&BoneIndex, sizeof(uint16_t), 1, fp);
-			myskin->BoneIndices.push_back(BoneIndex);
+			myskin->BoneIndices.emplace_back(BoneIndex);
 			Offset += 2;
 		}
 
@@ -254,11 +255,13 @@ int openskl(Skeleton *myskin, const char* filename)
 	else
 	{
 		printf("skl has an unsupported version: %d\n", myskin->Type);
+		fclose(fp);
 		return 1;
 	}
 
 	printf("skl version %d was succesfully loaded: Type: %d Bones: %u BoneIndices: %d\n",
 		myskin->Version, myskin->Type, myskin->Bones.size(), myskin->BoneIndices.size());
+	fclose(fp);
 	return 0;
 }
 
