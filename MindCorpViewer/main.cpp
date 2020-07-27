@@ -109,6 +109,8 @@ GLuint loadDDS(const char* filename)
 	fread(&Signature, sizeof(uint32_t), 1, fp);
 	if (Signature != DDS)
 	{
+		printf("dds has no valid signature\n");
+		scanf("press enter to exit.");
 		return 0;
 	}
 
@@ -174,6 +176,7 @@ GLuint loadShader(GLenum type, const char* filename)
 		glGetShaderInfoLog(shader, 512, NULL, infoLog);
 		printf("shader(%s) failed: Cannot compile shader\n", filename);
 		printf("%s", infoLog);
+		scanf("press enter to exit.");
 	}
 	return shader;
 }
@@ -196,6 +199,7 @@ GLuint useshader(const char* vertexfile, const char* fragmentfile)
 		glGetProgramInfoLog(shaderid, 512, NULL, infoLog);
 		printf("shader() failed: Cannot link shader\n");
 		printf("%s", infoLog);
+		scanf("press enter to exit.");
 	}
 	glUseProgram(0);
 	glDeleteShader(vertexshader);
@@ -226,6 +230,7 @@ std::vector<std::string> ListDirectoryContents(const char *sDir, char* ext)
 	if ((hFind = FindFirstFile(sPath, &fdFile)) == INVALID_HANDLE_VALUE)
 	{
 		printf("Path not found: [%s]\n", sPath);
+		scanf("press enter to exit.");
 		return paths;
 	}
 
@@ -454,7 +459,8 @@ int main()
 	window_class.lpszClassName = "mindcorpviewer";
 
 	if (!RegisterClassA(&window_class)) {
-		printf("Failed to register window.");
+		printf("Failed to register window.\n");
+		scanf("press enter to exit.");
 		return 1;
 	}
 
@@ -480,7 +486,8 @@ int main()
 		0);
 
 	if (!window) {
-		printf("Failed to create window.");
+		printf("Failed to create window.\n");
+		scanf("press enter to exit.");
 		return 1;
 	}
 
@@ -498,7 +505,8 @@ int main()
 	window_classe.lpszClassName = "Dummy_mindcorpviewer";
 
 	if (!RegisterClassA(&window_classe)) {
-		printf("Failed to register dummy OpenGL window.");
+		printf("Failed to register dummy OpenGL window.\n");
+		scanf("press enter to exit.");
 		return 1;
 	}
 
@@ -517,7 +525,8 @@ int main()
 		0);
 
 	if (!dummy_window) {
-		printf("Failed to create dummy OpenGL window.");
+		printf("Failed to create dummy OpenGL window.\n");
+		scanf("press enter to exit.");
 		return 1;
 	}
 
@@ -533,22 +542,26 @@ int main()
 	HDC dummy_dc = GetDC(dummy_window);
 	int pixel_formate = ChoosePixelFormat(dummy_dc, &pfd);
 	if (!pixel_formate) {
-		printf("Failed to find a suitable pixel format.");
+		printf("Failed to find a suitable pixel format.\n");
+		scanf("press enter to exit.");
 		return 1;
 	}
 	if (!SetPixelFormat(dummy_dc, pixel_formate, &pfd)) {
-		printf("Failed to set the pixel format.");
+		printf("Failed to set the pixel format.\n");
+		scanf("press enter to exit.");
 		return 1;
 	}
 
 	HGLRC dummy_context = wglCreateContext(dummy_dc);
 	if (!dummy_context) {
-		printf("Failed to create a dummy OpenGL rendering context.");
+		printf("Failed to create a dummy OpenGL rendering context.\n");
+		scanf("press enter to exit.");
 		return 1;
 	}
 
 	if (!wglMakeCurrent(dummy_dc, dummy_context)) {
-		printf("Failed to activate dummy OpenGL rendering context.");
+		printf("Failed to activate dummy OpenGL rendering context.\n");
+		scanf("press enter to exit.");
 		return 1;
 	}
 
@@ -576,14 +589,16 @@ int main()
 	HDC real_dc = GetDC(window);
 	wglChoosePixelFormatARB(real_dc, pixel_format_attribs, 0, 1, &pixel_format, &num_formats);
 	if (!num_formats) {
-		printf("Failed to set the OpenGL 3.3 pixel format.");
+		printf("Failed to set the OpenGL 3.3 pixel format.\n");
+		scanf("press enter to exit.");
 		return 1;
 	}
 
 	PIXELFORMATDESCRIPTOR pfde;
 	DescribePixelFormat(real_dc, pixel_format, sizeof(pfde), &pfde);
 	if (!SetPixelFormat(real_dc, pixel_format, &pfde)) {
-		printf("Failed to set the OpenGL 3.3 pixel format.");
+		printf("Failed to set the OpenGL 3.3 pixel format.\n");
+		scanf("press enter to exit.");
 		return 1;
 	}
 
@@ -596,12 +611,14 @@ int main()
 
 	HGLRC gl33_context = wglCreateContextAttribsARB(real_dc, 0, gl33_attribs);
 	if (!gl33_context) {
-		printf("Failed to create OpenGL 3.3 context.");
+		printf("Failed to create OpenGL 3.3 context.\n");
+		scanf("press enter to exit.");
 		return 1;
 	}
 
 	if (!wglMakeCurrent(real_dc, gl33_context)) {
-		printf("Failed to activate OpenGL 3.3 rendering context.");
+		printf("Failed to activate OpenGL 3.3 rendering context.\n");
+		scanf("press enter to exit.");
 		return 1;
 	}
 

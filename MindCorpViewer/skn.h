@@ -52,6 +52,7 @@ int openskn(Skin *myskin, const char* filename)
 	if (Signature != 0x00112233)
 	{
 		printf("skn has no valid signature\n");
+		scanf("press enter to exit.");
 		fclose(fp);
 		return 1;
 	}
@@ -163,6 +164,7 @@ int openskn(Skin *myskin, const char* filename)
 		if (WeightError > 0.02f)
 		{
 			printf("WeightError\n");
+			scanf("press enter to exit.");
 			fclose(fp);
 			return 1;
 		}

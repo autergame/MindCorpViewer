@@ -176,6 +176,7 @@ int openskl(Skeleton *myskin, const char* filename)
 			if (Bone.ID != i)
 			{
 				printf("skl noticed an unexpected ID value for bone %d: %d\n", i, Bone.ID);
+				scanf("press enter to exit.");
 				fclose(fp);
 				return 1;
 			}
@@ -255,6 +256,7 @@ int openskl(Skeleton *myskin, const char* filename)
 	else
 	{
 		printf("skl has an unsupported version: %d\n", myskin->Type);
+		scanf("press enter to exit.");
 		fclose(fp);
 		return 1;
 	}

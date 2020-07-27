@@ -125,6 +125,7 @@ int openanm(Animation *myskin, const char* filename)
 	if (memcmp(Signature, "r3d2anmd", 8) != 0 && memcmp(Signature, "r3d2canm", 8) != 0)
 	{
 		printf("anm has signature %s, which is not known by this application\n", Signature);
+		scanf("press enter to exit.");
 		fclose(fp);
 		return 1;
 	}
@@ -534,6 +535,7 @@ int openanm(Animation *myskin, const char* filename)
 	else
 	{
 		printf("anm has an unsupported version: %d\n", Version);
+		scanf("press enter to exit.");
 		fclose(fp);
 		return 1;
 	}
