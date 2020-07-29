@@ -3,12 +3,14 @@
 	"synchronizedtime": false,
 	"PATHS": [
 		{
+			"name": "kindred",
 			"dds": "skinone",
 			"anm": "skinone\\animations",
 			"skn": "skinone\\kindred_skin03.pie_c_10_16.skn",
 			"skl": "skinone\\kindred_skin03.pie_c_10_16.skl"
 		}, 
 		{
+			"name": "wolf",
 			"dds": "skintwo",
 			"anm": "skintwo\\animations",
 			"skn": "skintwo\\kindredwolf_skin03.pie_c_10_16.skn",

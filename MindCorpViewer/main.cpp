@@ -400,6 +400,7 @@ int main()
 
 	size_t pathsize = cJSON_GetArraySize(paths);
 
+	char** name = (char**)calloc(pathsize, 1);
 	char** ddsf = (char**)calloc(pathsize, 1);
 	char** anmf = (char**)calloc(pathsize, 1);
 	char** sknf = (char**)calloc(pathsize, 1);
@@ -408,6 +409,7 @@ int main()
 	cJSON* obj;
 	for (i = 0, obj = paths->child; obj != NULL; obj = obj->next, i++)
 	{
+		name[i] = cJSON_GetObjectItemCaseSensitive(obj, "name")->valuestring;
 		ddsf[i] = cJSON_GetObjectItemCaseSensitive(obj, "dds")->valuestring;
 		anmf[i] = cJSON_GetObjectItemCaseSensitive(obj, "anm")->valuestring;
 		sknf[i] = cJSON_GetObjectItemCaseSensitive(obj, "skn")->valuestring;
@@ -846,6 +848,10 @@ int main()
 		}
 	}
 
+	for (k = 0; k < pathsize; k++)
+		for (i = 0; i < myskn[k].Meshes.size(); i++)
+			myskn[k].Meshes[i].texid = mydds[k][nowdds[k][i]];
+
 	glm::vec3 trans(1.f);
 	float yaw = 90.f, pitch = 70.f;
 	float Deltatime = 0, Lastedtime = 0;
@@ -897,32 +903,35 @@ int main()
 		ImGui::Checkbox("Synchronized Time", &synchronizedtime);
 		for (k = 0; k < pathsize; k++)
 		{
-			ImGui::PushID(k);
-			ImGui::Text("Skin");
-			ImGui::Checkbox("Wireframe", &wireframe[k]);
-			ImGui::Checkbox("Show Skeleton", &showskeleton[k]);
-			for (i = 0; i < myskn[k].Meshes.size(); i++)
+			if (ImGui::TreeNode(name[k]))
 			{
-				ImGui::PushID(i);
-				ImGui::Text(myskn[k].Meshes[i].Name.c_str());
-				ImGui::Checkbox("Show model", (bool*)&showmesh[k][i]);
-				if (showmesh[k][i])
+				ImGui::PushID(k);
+				ImGui::Checkbox("Wireframe", &wireframe[k]);
+				ImGui::Checkbox("Show Skeleton", &showskeleton[k]);
+				for (i = 0; i < myskn[k].Meshes.size(); i++)
 				{
-					ListBox("", &nowdds[k][i], pathsdds[k]);
-					myskn[k].Meshes[i].texid = mydds[k][nowdds[k][i]];
-					ImGui::Image((void*)(myskn[k].Meshes[i].texid + 1), ImVec2(64, 64));
+					ImGui::PushID(i);
+					ImGui::Text(myskn[k].Meshes[i].Name.c_str());
+					ImGui::Checkbox("Show model", (bool*)&showmesh[k][i]);
+					if (showmesh[k][i])
+					{
+						ListBox("", &nowdds[k][i], pathsdds[k]);
+						myskn[k].Meshes[i].texid = mydds[k][nowdds[k][i]];
+						ImGui::Image((void*)(myskn[k].Meshes[i].texid + 1), ImVec2(64, 64));
+					}
+					ImGui::PopID();
 				}
+				ImGui::Text("Animation");
+				ImGui::Checkbox("Use Animation", &setupanm[k]);
+				ImGui::Checkbox("Play / Stop", &playanm[k]);
+				ImGui::Checkbox("Go To Start", &gotostart[k]);
+				ImGui::Checkbox("Jump To Next", &jumpnext[k]);
+				ImGui::SliderFloat("Speed", &speedanm[k], 0.001f, 5.f);
+				ImGui::SliderFloat("Time", &Time[k], 0.001f, myanm[k][nowanm[k]].Duration);
+				ListBox("List", &nowanm[k], pathsanm[k]);
 				ImGui::PopID();
+				ImGui::TreePop();
 			}
-			ImGui::Text("Animation");
-			ImGui::Checkbox("Use Animation", &setupanm[k]);
-			ImGui::Checkbox("Play / Stop", &playanm[k]);
-			ImGui::Checkbox("Go To Start", &gotostart[k]);
-			ImGui::Checkbox("Jump To Next", &jumpnext[k]);
-			ImGui::SliderFloat("Speed", &speedanm[k], 0.001f, 5.f);
-			ImGui::SliderFloat("Time", &Time[k], 0.001f, myanm[k][nowanm[k]].Duration);
-			ListBox("List", &nowanm[k], pathsanm[k]);
-			ImGui::PopID();
 		}
 		if (ImGui::Button("Save Configuration"))
 		{
@@ -940,6 +949,7 @@ int main()
 			for (k = 0; k < pathsize; k++)
 			{
 				obj = cJSON_CreateObject();
+				cJSON_AddItemToObject(obj, "name", cJSON_CreateString(name[k]));
 				cJSON_AddItemToObject(obj, "dds", cJSON_CreateString(ddsf[k]));
 				cJSON_AddItemToObject(obj, "anm", cJSON_CreateString(anmf[k]));
 				cJSON_AddItemToObject(obj, "skn", cJSON_CreateString(sknf[k]));
