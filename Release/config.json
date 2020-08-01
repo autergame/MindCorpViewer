@@ -1,6 +1,6 @@
 {
 	"showground": true,
-	"synchronizedtime": false,
+	"synchronizedtime": true,
 	"PATHS": [
 		{
 			"name": "kindred",
@@ -45,13 +45,13 @@
 		}, 
 		{
 			"name": "Recallface",
-			"texture": 0,
-			"show": false
+			"texture": 2,
+			"show": true
 		}, 
 		{
 			"name": "Maskface",
 			"texture": 2,
-			"show": true
+			"show": false
 		}, 
 		{
 			"name": "Weapon",

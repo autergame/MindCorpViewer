@@ -1,7 +1,7 @@
 //author https://github.com/autergame
 #pragma once
 
-struct Bone
+typedef struct Bone
 {
 	std::string Name;
 	uint32_t Hash = 0;
@@ -15,7 +15,7 @@ struct Bone
 
 	Bone* Parent;
 	std::vector<Bone*> Children;
-};
+} Bone;
 
 enum Type : uint32_t
 {
@@ -23,14 +23,13 @@ enum Type : uint32_t
 	Version2 = 0x22FD4FC3
 };
 
-class Skeleton
+typedef struct Skeleton
 {
-public:
 	Type Type;
 	uint32_t Version = 0;
 	std::vector<Bone> Bones;
 	std::vector<uint32_t> BoneIndices;
-};
+} Skeleton;
 
 bool removechar(char pchar)
 {
@@ -73,25 +72,25 @@ uint32_t StringToHash(const std::string& s)
 	return hash;
 }
 
-int openskl(Skeleton *myskin, const char* filename)
+int openskl(Skeleton *myskl, const char* filename)
 {
 	FILE *fp = fopen(filename, "rb");
 	
 	fseek(fp, 4, 0);
-	fread(&myskin->Type, sizeof(uint32_t), 1, fp);
-	fread(&myskin->Version, sizeof(uint32_t), 1, fp);
+	fread(&myskl->Type, sizeof(uint32_t), 1, fp);
+	fread(&myskl->Version, sizeof(uint32_t), 1, fp);
 
-	if (myskin->Type == Classic)
+	if (myskl->Type == Classic)
 	{
 		fseek(fp, 16, 0);
 		uint32_t BoneCount;
 		fread(&BoneCount, sizeof(uint32_t), 1, fp);
 
 		char Name[32];
-		myskin->Bones.resize(BoneCount);
+		myskl->Bones.resize(BoneCount);
 		for (uint32_t i = 0; i < BoneCount; i++)
 		{			
-			Bone& Bone = myskin->Bones[i];
+			Bone& Bone = myskl->Bones[i];
 
 			fread(Name, sizeof(char), 32, fp);
 			Bone.Hash = StringToHash(Name);
@@ -101,7 +100,7 @@ int openskl(Skeleton *myskin, const char* filename)
 			fread(&Bone.ParentID, sizeof(int32_t), 1, fp);
 			if (Bone.ParentID >= 0)
 			{
-				Bone.Parent = &myskin->Bones[Bone.ParentID];
+				Bone.Parent = &myskl->Bones[Bone.ParentID];
 				Bone.Parent->Children.emplace_back(&Bone);
 			}
 			else Bone.Parent = nullptr;
@@ -117,21 +116,21 @@ int openskl(Skeleton *myskin, const char* filename)
 			Bone.InverseGlobalMatrix = glm::inverse(Bone.GlobalMatrix);
 		}
 
-		if (myskin->Version < 2)
+		if (myskl->Version < 2)
 		{			
-			myskin->BoneIndices.resize(BoneCount);
+			myskl->BoneIndices.resize(BoneCount);
 			for (uint32_t i = 0; i < BoneCount; i++)
-				myskin->BoneIndices[i] = i;
+				myskl->BoneIndices[i] = i;
 		}
-		else if (myskin->Version == 2)
+		else if (myskl->Version == 2)
 		{
 			uint32_t BoneIndexCount;
 			fread(&BoneIndexCount, sizeof(uint32_t), 1, fp);
-			myskin->BoneIndices.resize(BoneIndexCount);
-			fread(myskin->BoneIndices.data(), sizeof(uint32_t), BoneIndexCount, fp);
+			myskl->BoneIndices.resize(BoneIndexCount);
+			fread(myskl->BoneIndices.data(), sizeof(uint32_t), BoneIndexCount, fp);
 		}
 	}
-	else if (myskin->Type == Version2)
+	else if (myskl->Type == Version2)
 	{
 		uint32_t Offset = 14;
 		fseek(fp, Offset, 0);
@@ -164,10 +163,10 @@ int openskl(Skeleton *myskin, const char* filename)
 		Offset = DataOffset;
 		fseek(fp, Offset, 0);
 
-		myskin->Bones.resize(BoneCount);
+		myskl->Bones.resize(BoneCount);
 		for (int i = 0; i < BoneCount; ++i)
 		{
-			Bone& Bone = myskin->Bones[i];
+			Bone& Bone = myskl->Bones[i];
 
 			Offset += sizeof(uint16_t);
 			fseek(fp, Offset, 0);
@@ -182,7 +181,7 @@ int openskl(Skeleton *myskin, const char* filename)
 			}
 
 			fread(&Bone.ParentID, sizeof(int16_t), 1, fp); Offset += 2;
-			Bone.Parent = Bone.ParentID >= 0 ? &myskin->Bones[Bone.ParentID] : nullptr;
+			Bone.Parent = Bone.ParentID >= 0 ? &myskl->Bones[Bone.ParentID] : nullptr;
 
 			Offset += sizeof(uint16_t);
 			fseek(fp, Offset, 0);
@@ -215,19 +214,19 @@ int openskl(Skeleton *myskin, const char* filename)
 
 			if (Bone.ParentID != -1)
 			{
-				myskin->Bones[Bone.ParentID].Children.emplace_back(&Bone);
+				myskl->Bones[Bone.ParentID].Children.emplace_back(&Bone);
 			}
 		}
 
 		Offset = BoneIndicesOffset;
 		fseek(fp, Offset, 0);
 
-		myskin->BoneIndices.resize(BoneIndexCount);
+		myskl->BoneIndices.resize(BoneIndexCount);
 		for (uint32_t i = 0; i < BoneIndexCount; i++)
 		{
 			uint16_t BoneIndex;
 			fread(&BoneIndex, sizeof(uint16_t), 1, fp);
-			myskin->BoneIndices[i] = BoneIndex;
+			myskl->BoneIndices[i] = BoneIndex;
 			Offset += 2;
 		}
 
@@ -241,28 +240,28 @@ int openskl(Skeleton *myskin, const char* filename)
 		char* Pointer = (char*)Start.data();
 		for (int i = 0; i < BoneCount; ++i)
 		{
-			myskin->Bones[i].Name = Pointer;
+			myskl->Bones[i].Name = Pointer;
 			Pointer += strlen(Pointer);
 			while (removechar(*Pointer)) 
 				Pointer++;
 		}
 
-		for (size_t i = 0; i < myskin->Bones.size(); i++)
+		for (size_t i = 0; i < myskl->Bones.size(); i++)
 		{
-			if (myskin->Bones[i].ParentID != -1) continue;
-			RecursiveInvertGlobalMatrices(glm::identity<glm::mat4>(), &myskin->Bones[i]);
+			if (myskl->Bones[i].ParentID != -1) continue;
+			RecursiveInvertGlobalMatrices(glm::identity<glm::mat4>(), &myskl->Bones[i]);
 		}
 	}
 	else
 	{
-		printf("skl has an unsupported version: %d\n", myskin->Type);
+		printf("skl has an unsupported version: %d\n", myskl->Type);
 		scanf("press enter to exit.");
 		fclose(fp);
 		return 1;
 	}
 
 	printf("skl version %d was succesfully loaded: Type: %d Bones: %u BoneIndices: %d\n",
-		myskin->Version, myskin->Type, myskin->Bones.size(), myskin->BoneIndices.size());
+		myskl->Version, myskl->Type, myskl->Bones.size(), myskl->BoneIndices.size());
 	fclose(fp);
 	return 0;
 }

@@ -8,43 +8,28 @@ enum FrameDataType : uint8_t
 	ScaleType = 128
 };
 
-struct Boneanm
+typedef struct Boneanm
 {
-	template<typename T>
-	struct Frame
-	{
-		Frame(float Time = 0, T FrameData = T()) :
-			Time(Time), FrameData(FrameData)
-		{
-		}
-
-		float Time;
-		T FrameData;
-	};
-	using TranslationFrame = Frame<glm::vec3>;
-	using RotationFrame = Frame<glm::quat>;
-	using ScaleFrame = Frame<glm::vec3>;
-
 	uint32_t Hash = 0;
+	std::vector<std::pair<float, glm::vec3>> Translation;
+	std::vector<std::pair<float, glm::quat>> Rotation;
+	std::vector<std::pair<float, glm::vec3>> Scale;
+} Boneanm;
 
-	std::vector<TranslationFrame> Translation;
-	std::vector<RotationFrame> Rotation;
-	std::vector<ScaleFrame> Scale;
-};
-
-class Animation
+typedef struct Animation
 {
-public:
-	float FPS = 0, Duration = 0;
+	float FPS = 0.f;
+	float Duration = 0.f;
+	float FrameDelay = 0.f;
 	std::vector<Boneanm> Bones;
-};
+} Animation;
 
-struct FrameIndices
+typedef struct FrameIndices
 {
 	uint16_t TranslationIndex;
 	uint16_t RotationIndex;
 	uint16_t ScaleIndex;
-};
+} FrameIndices;
 
 glm::quat UncompressQuaternion(const uint16_t& t_DominantAxis, const uint16_t& a_X, const uint16_t& a_Y, const uint16_t& a_Z)
 {
@@ -114,7 +99,7 @@ float UncompressTime(const uint16_t& a_CurrentTime, const float& a_AnimationLeng
 	return t_UncompressedTime;
 }
 
-int openanm(Animation *myskin, const char* filename)
+int openanm(Animation *myanm, const char* filename)
 {
 	uint32_t Offset = 0;
 	FILE *fp = fopen(filename, "rb");
@@ -151,11 +136,12 @@ int openanm(Animation *myskin, const char* filename)
 		Offset += 4;
 		fseek(fp, Offset, 0);
 
-		fread(&myskin->Duration, sizeof(float), 1, fp); Offset += 4;
-		fread(&myskin->FPS, sizeof(float), 1, fp); Offset += 4;
+		fread(&myanm->Duration, sizeof(float), 1, fp); Offset += 4;
+		fread(&myanm->FPS, sizeof(float), 1, fp); Offset += 4;
+		myanm->FrameDelay = 1.0f / myanm->FPS;
 
-		uint32_t FrameCount = (uint32_t)(myskin->Duration * myskin->FPS);
-		float FrameDelay = 1.0f / myskin->FPS;
+		uint32_t FrameCount = (uint32_t)(myanm->Duration * myanm->FPS);
+		float FrameDelay = 1.0f / myanm->FPS;
 
 		Offset += 24;
 		fseek(fp, Offset, 0);
@@ -193,7 +179,7 @@ int openanm(Animation *myskin, const char* filename)
 		std::vector<uint32_t> HashEntries;
 		HashEntries.resize(BoneCount);
 		for (uint32_t i = 0; i < BoneCount; ++i)
-			fread(&HashEntries[i], sizeof(uint32_t), 1, fp);
+			fread(&HashEntries[0], sizeof(uint32_t), BoneCount, fp);
 
 		fseek(fp, EntriesOffset, 0);
 
@@ -240,7 +226,7 @@ int openanm(Animation *myskin, const char* filename)
 
 			for (auto &CompressedTranslation : CompressedTranslations[i])
 			{
-				float Time = UncompressTime(CompressedTranslation.first, myskin->Duration);
+				float Time = UncompressTime(CompressedTranslation.first, myanm->Duration);
 
 				std::bitset<48> Mask = 0xFFFF;
 				uint16_t X = static_cast<uint16_t>((CompressedTranslation.second & Mask).to_ulong());
@@ -254,7 +240,7 @@ int openanm(Animation *myskin, const char* filename)
 
 			for (auto &CompressedRotation : CompressedRotations[i])
 			{
-				float Time = UncompressTime(CompressedRotation.first, myskin->Duration);
+				float Time = UncompressTime(CompressedRotation.first, myanm->Duration);
 
 				std::bitset<48> Mask = 0x7FFF;
 				uint16_t DominantAxis = static_cast<uint16_t>((CompressedRotation.second >> 45).to_ulong());
@@ -269,7 +255,7 @@ int openanm(Animation *myskin, const char* filename)
 
 			for (auto &CompressedScale : CompressedScales[i])
 			{
-				float Time = UncompressTime(CompressedScale.first, myskin->Duration);
+				float Time = UncompressTime(CompressedScale.first, myanm->Duration);
 
 				std::bitset<48> Mask = 0xFFFF;
 				uint16_t X = static_cast<uint16_t>((CompressedScale.second & Mask).to_ulong());
@@ -280,7 +266,7 @@ int openanm(Animation *myskin, const char* filename)
 				BoneEntry.Scale.emplace_back(Time, Scale);
 			}
 
-			myskin->Bones.emplace_back(BoneEntry);
+			myanm->Bones.emplace_back(BoneEntry);
 		}
 	}
 	else if (Version == 3)
@@ -292,45 +278,42 @@ int openanm(Animation *myskin, const char* filename)
 		fread(&BoneCount, sizeof(uint32_t), 1, fp); Offset += 4;
 		fread(&FrameCount, sizeof(uint32_t), 1, fp); Offset += 4;
 
-		int fps;
-		fread(&fps, sizeof(float), 1, fp); Offset += 4;
-		myskin->FPS = (float)fps;
-
-		float FrameDelay = 1.0f / myskin->FPS;
-		myskin->Duration = FrameDelay * FrameCount;
+		fread(&myanm->FPS, sizeof(float), 1, fp); Offset += 4;
+		myanm->FrameDelay = 1.0f / myanm->FPS;
+		myanm->Duration = myanm->FrameDelay * FrameCount;
 
 		char Name[32];
-		myskin->Bones.resize(BoneCount);
+		myanm->Bones.resize(BoneCount);
 		for (uint32_t i = 0; i < BoneCount; ++i)
 		{
 			fread(Name, sizeof(char), 32, fp); Offset += 32;
-			myskin->Bones[i].Hash = StringToHash(Name);
+			myanm->Bones[i].Hash = StringToHash(Name);
 
 			Offset += 4;
 			fseek(fp, Offset, 0);
 
-			myskin->Bones[i].Translation.resize(FrameCount);
-			myskin->Bones[i].Rotation.resize(FrameCount);
-			myskin->Bones[i].Scale.resize(FrameCount);
+			myanm->Bones[i].Translation.resize(FrameCount);
+			myanm->Bones[i].Rotation.resize(FrameCount);
+			myanm->Bones[i].Scale.resize(FrameCount);
 
 			float cumulativeFrameDelay = 0.0f;
 			for (uint32_t j = 0; j < FrameCount; ++j)
 			{
-				myskin->Bones[i].Rotation[j].Time = cumulativeFrameDelay;
-				myskin->Bones[i].Translation[j].Time = cumulativeFrameDelay;
-				myskin->Bones[i].Scale[j].Time = cumulativeFrameDelay;
+				myanm->Bones[i].Rotation[j].first = cumulativeFrameDelay;
+				myanm->Bones[i].Translation[j].first = cumulativeFrameDelay;
+				myanm->Bones[i].Scale[j].first = cumulativeFrameDelay;
 
-				fread(&myskin->Bones[i].Rotation[j].FrameData.x, sizeof(float), 1, fp); Offset += 4;
-				fread(&myskin->Bones[i].Rotation[j].FrameData.y, sizeof(float), 1, fp); Offset += 4;
-				fread(&myskin->Bones[i].Rotation[j].FrameData.z, sizeof(float), 1, fp); Offset += 4;
-				fread(&myskin->Bones[i].Rotation[j].FrameData.w, sizeof(float), 1, fp); Offset += 4;
+				fread(&myanm->Bones[i].Rotation[j].second.x, sizeof(float), 1, fp); Offset += 4;
+				fread(&myanm->Bones[i].Rotation[j].second.y, sizeof(float), 1, fp); Offset += 4;
+				fread(&myanm->Bones[i].Rotation[j].second.z, sizeof(float), 1, fp); Offset += 4;
+				fread(&myanm->Bones[i].Rotation[j].second.w, sizeof(float), 1, fp); Offset += 4;
 
-				fread(&myskin->Bones[i].Translation[j].FrameData.x, sizeof(float), 1, fp); Offset += 4;
-				fread(&myskin->Bones[i].Translation[j].FrameData.y, sizeof(float), 1, fp); Offset += 4;
-				fread(&myskin->Bones[i].Translation[j].FrameData.z, sizeof(float), 1, fp); Offset += 4;
+				fread(&myanm->Bones[i].Translation[j].second.x, sizeof(float), 1, fp); Offset += 4;
+				fread(&myanm->Bones[i].Translation[j].second.y, sizeof(float), 1, fp); Offset += 4;
+				fread(&myanm->Bones[i].Translation[j].second.z, sizeof(float), 1, fp); Offset += 4;
 
-				myskin->Bones[i].Scale[j].FrameData[0] = myskin->Bones[i].Scale[j].FrameData[1] = myskin->Bones[i].Scale[j].FrameData[2] = 1.0f;
-				cumulativeFrameDelay += FrameDelay;
+				myanm->Bones[i].Scale[j].second = glm::vec3(1.f);
+				cumulativeFrameDelay += myanm->FrameDelay;
 			}
 		}
 	}
@@ -339,17 +322,16 @@ int openanm(Animation *myskin, const char* filename)
 		Offset += 16;
 		fseek(fp, Offset, 0);
 
-		float FrameDelay;
 		uint32_t BoneCount, FrameCount;
 		fread(&BoneCount, sizeof(uint32_t), 1, fp); Offset += 4;
 		fread(&FrameCount, sizeof(uint32_t), 1, fp); Offset += 4;
-		fread(&FrameDelay, sizeof(float), 1, fp); Offset += 4;
+		fread(&myanm->FrameDelay, sizeof(float), 1, fp); Offset += 4;
 
 		Offset += 12;
 		fseek(fp, Offset, 0);
 
-		myskin->Duration = FrameDelay * FrameCount;
-		myskin->FPS = 1.0f / FrameDelay;
+		myanm->Duration = myanm->FrameDelay * FrameCount;
+		myanm->FPS = 1.0f / myanm->FrameDelay;
 
 		uint32_t TranslationDataOffset, RotationDataOffset, FrameDataOffset;
 		fread(&TranslationDataOffset, sizeof(uint32_t), 1, fp); Offset += 4;
@@ -419,10 +401,10 @@ int openanm(Animation *myskin, const char* filename)
 				Bone.Translation.emplace_back(CurrentTime, TranslationOrScaleEntries[Frame.TranslationIndex]);
 				Bone.Rotation.emplace_back(CurrentTime, RotationEntries[Frame.RotationIndex]);
 				Bone.Scale.emplace_back(CurrentTime, TranslationOrScaleEntries[Frame.ScaleIndex]);
-				CurrentTime += FrameDelay;
+				CurrentTime += myanm->FrameDelay;
 			}
 
-			myskin->Bones.emplace_back(Bone);
+			myanm->Bones.emplace_back(Bone);
 		}
 	}
 	else if (Version == 5)
@@ -435,13 +417,12 @@ int openanm(Animation *myskin, const char* filename)
 		fseek(fp, Offset, 0);
 
 		uint32_t BoneCount, FrameCount;
-		float FrameDelay;
 		fread(&BoneCount, sizeof(uint32_t), 1, fp); Offset += 4;
 		fread(&FrameCount, sizeof(uint32_t), 1, fp); Offset += 4;
-		fread(&FrameDelay, sizeof(float), 1, fp); Offset += 4;
+		fread(&myanm->FrameDelay, sizeof(float), 1, fp); Offset += 4;
 
-		myskin->Duration = (float)FrameCount * FrameDelay;
-		myskin->FPS = (float)FrameCount / myskin->Duration;
+		myanm->Duration = (float)FrameCount * myanm->FrameDelay;
+		myanm->FPS = (float)FrameCount / myanm->Duration;
 
 		int32_t TranslationFileOffset, RotationFileOffset, FrameFileOffset, HashesOffset;
 
@@ -496,7 +477,7 @@ int openanm(Animation *myskin, const char* filename)
 			fread(&HashEntry[i], sizeof(uint32_t), 1, fp); Offset += 4;
 		}
 
-		myskin->Bones.resize(BoneCount);
+		myanm->Bones.resize(BoneCount);
 
 		Offset = FrameFileOffset;
 		fseek(fp, Offset, 0);
@@ -507,7 +488,7 @@ int openanm(Animation *myskin, const char* filename)
 		{
 			for (uint32_t j = 0; j < BoneCount; ++j)
 			{
-				myskin->Bones[j].Hash = HashEntry[j];
+				myanm->Bones[j].Hash = HashEntry[j];
 
 				uint16_t TranslationIndex, RotationIndex, ScaleIndex;
 				fread(&TranslationIndex, sizeof(uint16_t), 1, fp); Offset += 2;
@@ -522,12 +503,12 @@ int openanm(Animation *myskin, const char* filename)
 
 				glm::quat RotationEntry = UncompressQuaternion(flag, sx, sy, sz);
 
-				myskin->Bones[j].Rotation.emplace_back(CurrentTime, RotationEntry);
-				myskin->Bones[j].Scale.emplace_back(CurrentTime, Translations[ScaleIndex]);
-				myskin->Bones[j].Translation.emplace_back(CurrentTime, Translations[TranslationIndex]);
+				myanm->Bones[j].Rotation.emplace_back(CurrentTime, RotationEntry);
+				myanm->Bones[j].Scale.emplace_back(CurrentTime, Translations[ScaleIndex]);
+				myanm->Bones[j].Translation.emplace_back(CurrentTime, Translations[TranslationIndex]);
 			}
 
-			CurrentTime += FrameDelay;
+			CurrentTime += myanm->FrameDelay;
 		}
 	}
 	else
@@ -538,7 +519,7 @@ int openanm(Animation *myskin, const char* filename)
 		return 1;
 	}
 
-	printf("anm version %d was succesfully loaded: FPS: %f Duration: %f\n", Version, myskin->FPS, myskin->Duration);
+	printf("anm version %d was succesfully loaded: FPS: %f Duration: %f\n", Version, myanm->FPS, myanm->Duration);
 	fclose(fp);
 	return 0;
 }
@@ -598,18 +579,18 @@ glm::quat Interpolate(glm::quat Low, glm::quat High, float Progress)
 }
 
 template<typename T>
-T FindNearestTime(const std::vector<Boneanm::Frame<T>>& Vector, float Time, size_t& Index)
+T FindNearestTime(std::vector<std::pair<float, T>>& Vector, float Time, size_t& Index)
 {
 	auto Min = Vector[0];
 	auto Max = Vector.back();
 
-	if (Time > Vector.back().Time)
+	if (Time > Vector.back().first)
 	{
 		Min = Vector[Vector.size() - 2];
 	}
 	else
 	{
-		if (Time < Vector[Index].Time)
+		if (Time < Vector[Index].first)
 			Index = 0;
 
 		Index = Index ? Index - 1 : 0;
@@ -618,7 +599,7 @@ T FindNearestTime(const std::vector<Boneanm::Frame<T>>& Vector, float Time, size
 		{
 			const auto& Current = Vector[Index];
 
-			if (Current.Time <= Time)
+			if (Current.first <= Time)
 			{
 				Min = Current;
 				continue;
@@ -629,9 +610,9 @@ T FindNearestTime(const std::vector<Boneanm::Frame<T>>& Vector, float Time, size
 		}
 	}
 
-	float Div = Max.Time - Min.Time;
-	float LerpValue = (Div == 0) ? 1 : (Time - Min.Time) / Div;
-	return Interpolate(Min.FrameData, Max.FrameData, LerpValue);
+	float Div = Max.first - Min.first;
+	float LerpValue = (Div == 0) ? 1 : (Time - Min.first) / Div;
+	return Interpolate(Min.second, Max.second, LerpValue);
 }
 
 void SetupHierarchy(std::vector<glm::mat4>* Bones, Bone* SkeletonBone, glm::mat4 Parent, float Time, std::vector<BoneFrameIndexCache>* CurrentFrame, Animation* anm)

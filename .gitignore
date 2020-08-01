@@ -3,4 +3,5 @@
 *.lib
 Debug/
 MindCorpViewer/Debug/
+MindCorpViewer/DebugWR/
 MindCorpViewer/Release/

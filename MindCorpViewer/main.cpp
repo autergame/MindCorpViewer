@@ -1,6 +1,6 @@
 //author https://github.com/autergame
 #define _CRT_SECURE_NO_WARNINGS
-#define GLM_CONFIG_XYZW_ONLY
+#define GLM_FORCE_XYZW_ONLY
 #include <glad/glad.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
@@ -851,8 +851,22 @@ int main()
 	}
 
 	for (k = 0; k < pathsize; k++)
+	{
 		for (i = 0; i < myskn[k].Meshes.size(); i++)
 			myskn[k].Meshes[i].texid = mydds[k][nowdds[k][i]];
+		for (i = 0; i < pathsdds[k].size(); i++)
+		{
+			char* path = (char*)pathsdds[k][i].c_str();
+			char* pfile = path + strlen(path);
+			for (; pfile > path; pfile--)
+				if ((*pfile == '\\') || (*pfile == '/'))
+				{
+					pfile++;
+					break;
+				}
+			pathsdds[k][i] = pfile;
+		}
+	}
 
 	glm::vec3 trans(1.f);
 	float yaw = 90.f, pitch = 70.f;
@@ -879,7 +893,7 @@ int main()
 		Deltatime = float(GetTimeSinceStart() - Lastedtime);
 		Lastedtime = (float)GetTimeSinceStart();
 
-		sprintf_s(tmp, "MindCorpLowUltraGameEngine - FPS: %1.0f", 1 / Deltatime);
+		sprintf_s(tmp, "MindCorpViewer - FPS: %1.0f", 1 / Deltatime);
 		SetWindowText(window, tmp);
 
 		glm::mat4 mvp = computeMatricesFromInputs(trans, yaw, pitch);
@@ -928,8 +942,8 @@ int main()
 				ImGui::Checkbox("Play / Stop", &playanm[k]);
 				ImGui::Checkbox("Go To Start", &gotostart[k]);
 				ImGui::Checkbox("Jump To Next", &jumpnext[k]);
-				ImGui::SliderFloat("Speed", &speedanm[k], 0.001f, 5.f);
-				ImGui::SliderFloat("Time", &Time[k], 0.001f, myanm[k][nowanm[k]].Duration);
+				ImGui::SliderFloat("Speed", &speedanm[k], 0.0001f, 5.f, "%.4f");
+				ImGui::SliderFloat("Time", &Time[k], 0.0001f, myanm[k][nowanm[k]].Duration, "%.4f");
 				ListBox("List", &nowanm[k], pathsanm[k]);
 				ImGui::PopID();
 				ImGui::TreePop();
@@ -1071,15 +1085,17 @@ int main()
 		{
 			for (k = 0; k < pathsize; k++)
 			{
+				int indexp = 1, size = 0;
 				char* nameobj = (char*)calloc(strlen(name[k]) + 13, 1);
 				sprintf(nameobj, "export/%s.obj", name[k]);
 				FILE* fout = fopen(nameobj, "w");
-				int indexp = 1, size = 0;
+				fprintf(fout, "mtllib %s.mtl\n", name[k]);
 				for (i = 0; i < myskn[k].Meshes.size(); i++)
 				{
 					if (showmesh[k][i])
 					{
 						size += myskn[k].Meshes[i].IndexCount;
+						fprintf(fout, "usemtl %s%d\n", name[k], nowdds[k][i]);
 						fprintf(fout, "o %s%s\n", name[k], myskn[k].Meshes[i].Name);
 						for (uint32_t o = 0; o < myskn[k].Meshes[i].IndexCount; o++)
 						{
@@ -1101,15 +1117,30 @@ int main()
 							uint16_t index = myskn[k].Meshes[i].Indices[o];
 							fprintf(fout, "vt %.6f %.6f\n", myskn[k].UVs[index].x, 1.f - myskn[k].UVs[index].y);
 						}
+						for (uint32_t o = 0; o < myskn[k].Meshes[i].IndexCount; o++)
+						{
+							uint16_t index = myskn[k].Meshes[i].Indices[o];
+							fprintf(fout, "vn %.6f %.6f %.6f\n",
+								myskn[k].Normals[index].x, myskn[k].Normals[index].y, myskn[k].Normals[index].z);
+						}
 						fprintf(fout, "s 1\n");
 						while (indexp < size)
 						{
-							fprintf(fout, "f %d/%d %d/%d %d/%d\n",
-								indexp, indexp, indexp + 1, indexp + 1, indexp + 2, indexp + 2);
+							fprintf(fout, "f %d/%d/%d %d/%d/%d %d/%d/%d\n",
+								indexp, indexp, indexp, indexp+1, indexp+1, indexp+1, indexp+2, indexp+2, indexp+2);
 							indexp += 3;
 						}
 					}
 				}		
+				fclose(fout);
+				nameobj = (char*)calloc(strlen(name[k]) + 13, 1);
+				sprintf(nameobj, "export/%s.mtl", name[k]);
+				fout = fopen(nameobj, "w");
+				for (i = 0; i < pathsdds[k].size(); i++)
+				{
+					fprintf(fout, "newmtl %s%d\n", name[k], i);
+					fprintf(fout, "map_Kd %s\n\n", pathsdds[k][i].c_str());
+				}
 				fclose(fout);
 			}
 		}
