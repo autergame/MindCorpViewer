@@ -12,7 +12,7 @@ uint32_t FNV1Hash(const std::string& a_String)
 
 struct SubMeshHeader
 {
-	std::string Name = "";
+	char* Name;
 	uint32_t VertexOffset = 0;
 	uint32_t VertexCount = 0;
 	uint32_t IndexOffset = 0;
@@ -21,11 +21,11 @@ struct SubMeshHeader
 
 struct Mesh
 {
+	char* Name;
 	GLuint texid = 0;
-	std::string Name;
 	uint32_t Hash = 0;
 	uint16_t* Indices{0};
-	size_t IndexCount = 0;
+	uint32_t IndexCount = 0;
 };
 
 class Skin
@@ -65,20 +65,19 @@ int openskn(Skin *myskin, const char* filename)
 	if (myskin->Major > 0)
 	{
 		fread(&SubMeshHeaderCount, sizeof(uint32_t), 1, fp); Offset += 4;
+		SubMeshHeaders.resize(SubMeshHeaderCount);
 		for (uint32_t i = 0; i < SubMeshHeaderCount; i++)
 		{
 			SubMeshHeader Mesh;
-
-			char Name[64];
-			fread(Name, sizeof(char), 64, fp); Offset += 64;
-			Mesh.Name = Name;
+			Mesh.Name = (char*)calloc(64, 1);
+			fread(Mesh.Name, sizeof(char), 64, fp); Offset += 64;
 
 			fread(&Mesh.VertexOffset, sizeof(uint32_t), 1, fp); Offset += 4;
 			fread(&Mesh.VertexCount, sizeof(uint32_t), 1, fp); Offset += 4;
 			fread(&Mesh.IndexOffset, sizeof(uint32_t), 1, fp); Offset += 4;
 			fread(&Mesh.IndexCount, sizeof(uint32_t), 1, fp); Offset += 4;
 
-			SubMeshHeaders.emplace_back(Mesh);
+			SubMeshHeaders[i] = Mesh;
 		}
 	}
 

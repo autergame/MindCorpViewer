@@ -154,7 +154,7 @@ int openanm(Animation *myskin, const char* filename)
 		fread(&myskin->Duration, sizeof(float), 1, fp); Offset += 4;
 		fread(&myskin->FPS, sizeof(float), 1, fp); Offset += 4;
 
-		uint32_t FrameCount = (size_t)(myskin->Duration * myskin->FPS);
+		uint32_t FrameCount = (uint32_t)(myskin->Duration * myskin->FPS);
 		float FrameDelay = 1.0f / myskin->FPS;
 
 		Offset += 24;
@@ -193,9 +193,7 @@ int openanm(Animation *myskin, const char* filename)
 		std::vector<uint32_t> HashEntries;
 		HashEntries.resize(BoneCount);
 		for (uint32_t i = 0; i < BoneCount; ++i)
-		{
 			fread(&HashEntries[i], sizeof(uint32_t), 1, fp);
-		}
 
 		fseek(fp, EntriesOffset, 0);
 
@@ -461,12 +459,12 @@ int openanm(Animation *myskin, const char* filename)
 
 		std::vector<glm::vec3> Translations;
 
-		size_t TranslationCount = (size_t)(RotationFileOffset - TranslationFileOffset) / (sizeof(float) * 3);
+		uint32_t TranslationCount = (uint32_t)(RotationFileOffset - TranslationFileOffset) / (sizeof(float) * 3);
 
 		Offset = TranslationFileOffset;
 		fseek(fp, Offset, 0);
 
-		for (size_t i = 0; i < TranslationCount; ++i)
+		for (uint32_t i = 0; i < TranslationCount; ++i)
 		{
 			glm::vec3 translationEntry;
 			fread(&translationEntry, sizeof(uint8_t), 12, fp); Offset += 12;
@@ -475,12 +473,12 @@ int openanm(Animation *myskin, const char* filename)
 
 		std::vector<std::bitset<48>> RotationEntries;
 
-		size_t RotationCount = (size_t)(HashesOffset - RotationFileOffset) / 6;
+		uint32_t RotationCount = (uint32_t)(HashesOffset - RotationFileOffset) / 6;
 
 		Offset = RotationFileOffset;
 		fseek(fp, Offset, 0);
 
-		for (size_t i = 0; i < RotationCount; ++i)
+		for (uint32_t i = 0; i < RotationCount; ++i)
 		{
 			std::bitset<48> RotationEntry;
 			fread(&RotationEntry, sizeof(uint8_t), 6, fp); Offset += 6;
@@ -491,9 +489,9 @@ int openanm(Animation *myskin, const char* filename)
 		fseek(fp, Offset, 0);
 
 		std::vector<uint32_t> HashEntry;
-		size_t HashCount = (size_t)(FrameFileOffset - HashesOffset) / sizeof(uint32_t);
+		uint32_t HashCount = (uint32_t)(FrameFileOffset - HashesOffset) / sizeof(uint32_t);
 		HashEntry.resize(HashCount);
-		for (size_t i = 0; i < HashCount; ++i)
+		for (uint32_t i = 0; i < HashCount; ++i)
 		{
 			fread(&HashEntry[i], sizeof(uint32_t), 1, fp); Offset += 4;
 		}
@@ -505,9 +503,9 @@ int openanm(Animation *myskin, const char* filename)
 
 		float CurrentTime = 0.0f;
 
-		for (size_t i = 0; i < FrameCount; ++i)
+		for (uint32_t i = 0; i < FrameCount; ++i)
 		{
-			for (size_t j = 0; j < BoneCount; ++j)
+			for (uint32_t j = 0; j < BoneCount; ++j)
 			{
 				myskin->Bones[j].Hash = HashEntry[j];
 

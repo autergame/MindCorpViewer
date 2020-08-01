@@ -222,12 +222,12 @@ int openskl(Skeleton *myskin, const char* filename)
 		Offset = BoneIndicesOffset;
 		fseek(fp, Offset, 0);
 
-		myskin->BoneIndices.reserve(BoneIndexCount);
+		myskin->BoneIndices.resize(BoneIndexCount);
 		for (uint32_t i = 0; i < BoneIndexCount; i++)
 		{
 			uint16_t BoneIndex;
 			fread(&BoneIndex, sizeof(uint16_t), 1, fp);
-			myskin->BoneIndices.emplace_back(BoneIndex);
+			myskin->BoneIndices[i] = BoneIndex;
 			Offset += 2;
 		}
 

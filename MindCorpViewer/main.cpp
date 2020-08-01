@@ -1,5 +1,6 @@
 //author https://github.com/autergame
 #define _CRT_SECURE_NO_WARNINGS
+#define GLM_CONFIG_XYZW_ONLY
 #include <glad/glad.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
@@ -23,8 +24,8 @@
 #include "cJSON.h"
 
 typedef HGLRC WINAPI wglCreateContextAttribsARB_type(HDC hdc, HGLRC hShareContext,
-	const int *attribList);
-wglCreateContextAttribsARB_type *wglCreateContextAttribsARB;
+	const int* attribList);
+wglCreateContextAttribsARB_type* wglCreateContextAttribsARB;
 
 #define WGL_CONTEXT_MAJOR_VERSION_ARB             0x2091
 #define WGL_CONTEXT_MINOR_VERSION_ARB             0x2092
@@ -32,9 +33,9 @@ wglCreateContextAttribsARB_type *wglCreateContextAttribsARB;
 
 #define WGL_CONTEXT_CORE_PROFILE_BIT_ARB          0x00000001
 
-typedef BOOL WINAPI wglChoosePixelFormatARB_type(HDC hdc, const int *piAttribIList,
-	const FLOAT *pfAttribFList, UINT nMaxFormats, int *piFormats, UINT *nNumFormats);
-wglChoosePixelFormatARB_type *wglChoosePixelFormatARB;
+typedef BOOL WINAPI wglChoosePixelFormatARB_type(HDC hdc, const int* piAttribIList,
+	const FLOAT* pfAttribFList, UINT nMaxFormats, int* piFormats, UINT* nNumFormats);
+wglChoosePixelFormatARB_type* wglChoosePixelFormatARB;
 
 #define WGL_DRAW_TO_WINDOW_ARB                    0x2001
 #define WGL_ACCELERATION_ARB                      0x2003
@@ -99,7 +100,7 @@ struct DDS_HEADER
 
 GLuint loadDDS(const char* filename)
 {
-	FILE *fp = fopen(filename, "rb");
+	FILE* fp = fopen(filename, "rb");
 
 	uint32_t DDS = MAKEFOURCC('D', 'D', 'S', ' ');
 	uint32_t DXT3 = MAKEFOURCC('D', 'X', 'T', '3');
@@ -156,11 +157,11 @@ GLuint loadDDS(const char* filename)
 
 GLuint loadShader(GLenum type, const char* filename)
 {
-	FILE *fp = fopen(filename, "rb");
+	FILE* fp = fopen(filename, "rb");
 	fseek(fp, 0, SEEK_END);
 	long fsize = ftell(fp);
 	fseek(fp, 0, SEEK_SET);
-	char *string = new char[fsize + 1];
+	char* string = new char[fsize + 1];
 	fread(string, fsize, 1, fp);
 	fclose(fp);
 	string[fsize] = 0;
@@ -207,9 +208,9 @@ GLuint useshader(const char* vertexfile, const char* fragmentfile)
 	return shaderid;
 }
 
-void *GetAnyGLFuncAddress(const char *name)
+void* GetAnyGLFuncAddress(const char* name)
 {
-	void *p = (void*)wglGetProcAddress(name);
+	void* p = (void*)wglGetProcAddress(name);
 	if (p == 0 || (p == (void*)0x1) || (p == (void*)0x2) || (p == (void*)0x3) || (p == (void*)-1))
 	{
 		HMODULE module = LoadLibraryA("opengl32.dll");
@@ -218,7 +219,7 @@ void *GetAnyGLFuncAddress(const char *name)
 	return p;
 }
 
-std::vector<std::string> ListDirectoryContents(const char *sDir, char* ext)
+std::vector<std::string> ListDirectoryContents(const char* sDir, char* ext)
 {
 	WIN32_FIND_DATA fdFile;
 	HANDLE hFind = NULL;
@@ -244,9 +245,9 @@ std::vector<std::string> ListDirectoryContents(const char *sDir, char* ext)
 				paths.emplace_back(sPath);
 			}
 		}
-	} while (FindNextFile(hFind, &fdFile));    
+	} while (FindNextFile(hFind, &fdFile));
 
-	FindClose(hFind);     
+	FindClose(hFind);
 	return paths;
 }
 
@@ -264,7 +265,7 @@ bool ListBox(const char* label, int* currIndex, std::vector<std::string>& values
 	return ImGui::Combo(label, currIndex, vector_getter, static_cast<void*>(&values), values.size());
 }
 
-glm::mat4 computeMatricesFromInputs(glm::vec3 &trans, float &yaw, float &pitch)
+glm::mat4 computeMatricesFromInputs(glm::vec3& trans, float& yaw, float& pitch)
 {
 	static float lastx = mousex;
 	static float lasty = mousey;
@@ -321,61 +322,61 @@ LRESULT WINAPI WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 		return true;
 
 	int value;
-	switch (uMsg) 
+	switch (uMsg)
 	{
-		case WM_SIZE:
-			width = LOWORD(lParam); 
-			height = HIWORD(lParam);
-			glViewport(0, 0, width, height);	
-			PostMessage(hWnd, WM_PAINT, 0, 0);
-			break;
+	case WM_SIZE:
+		width = LOWORD(lParam);
+		height = HIWORD(lParam);
+		glViewport(0, 0, width, height);
+		PostMessage(hWnd, WM_PAINT, 0, 0);
+		break;
 
-		case WM_CLOSE:
-			active = FALSE;
-			break;
+	case WM_CLOSE:
+		active = FALSE;
+		break;
 
-		case WM_KEYDOWN:
-			touch[wParam] = TRUE;
-			break;
+	case WM_KEYDOWN:
+		touch[wParam] = TRUE;
+		break;
 
-		case WM_KEYUP:
-			touch[wParam] = FALSE;
-			break;
+	case WM_KEYUP:
+		touch[wParam] = FALSE;
+		break;
 
-		case WM_MOUSEWHEEL:
-			value = (int)(short)HIWORD(wParam);
-			if (!ImGui::IsAnyWindowHovered())
-			{
-				zoom -= value * .5f;
-				zoom = zoom < 1.f ? 1.f : zoom;
-			}
-			break;
+	case WM_MOUSEWHEEL:
+		value = (int)(short)HIWORD(wParam);
+		if (!ImGui::IsAnyWindowHovered())
+		{
+			zoom -= value * .5f;
+			zoom = zoom < 1.f ? 1.f : zoom;
+		}
+		break;
 
-		case WM_LBUTTONDOWN:
-		case WM_RBUTTONDOWN:
-			SetCapture(hWnd);
-			mx = LOWORD(lParam);
-			my = HIWORD(lParam);
-			if (uMsg == WM_LBUTTONDOWN)
-				state = 1;
-			if (uMsg == WM_RBUTTONDOWN)
-				state = 2;
-			break;
+	case WM_LBUTTONDOWN:
+	case WM_RBUTTONDOWN:
+		SetCapture(hWnd);
+		mx = LOWORD(lParam);
+		my = HIWORD(lParam);
+		if (uMsg == WM_LBUTTONDOWN)
+			state = 1;
+		if (uMsg == WM_RBUTTONDOWN)
+			state = 2;
+		break;
 
-		case WM_LBUTTONUP:
-		case WM_RBUTTONUP:
-			ReleaseCapture();
-			state = 0;
-			break;
+	case WM_LBUTTONUP:
+	case WM_RBUTTONUP:
+		ReleaseCapture();
+		state = 0;
+		break;
 
-		case WM_MOUSEMOVE:
-			omx = mx;
-			omy = my;
-			mx = (int)(short)LOWORD(lParam);
-			my = (int)(short)HIWORD(lParam);
-			mousex = float(mx - omx);
-			mousey = float(my - omy);
-			break;
+	case WM_MOUSEMOVE:
+		omx = mx;
+		omy = my;
+		mx = (int)(short)LOWORD(lParam);
+		my = (int)(short)HIWORD(lParam);
+		mousex = float(mx - omx);
+		mousey = float(my - omy);
+		break;
 	}
 	return DefWindowProc(hWnd, uMsg, wParam, lParam);
 }
@@ -406,25 +407,25 @@ int main()
 	char** sknf = (char**)calloc(pathsize, 1);
 	char** sklf = (char**)calloc(pathsize, 1);
 
-	cJSON* obj;
-	for (i = 0, obj = paths->child; obj != NULL; obj = obj->next, i++)
+	cJSON* jobj;
+	for (i = 0, jobj = paths->child; jobj != NULL; jobj = jobj->next, i++)
 	{
-		name[i] = cJSON_GetObjectItemCaseSensitive(obj, "name")->valuestring;
-		ddsf[i] = cJSON_GetObjectItemCaseSensitive(obj, "dds")->valuestring;
-		anmf[i] = cJSON_GetObjectItemCaseSensitive(obj, "anm")->valuestring;
-		sknf[i] = cJSON_GetObjectItemCaseSensitive(obj, "skn")->valuestring;
-		sklf[i] = cJSON_GetObjectItemCaseSensitive(obj, "skl")->valuestring;
+		name[i] = cJSON_GetObjectItemCaseSensitive(jobj, "name")->valuestring;
+		ddsf[i] = cJSON_GetObjectItemCaseSensitive(jobj, "dds")->valuestring;
+		anmf[i] = cJSON_GetObjectItemCaseSensitive(jobj, "anm")->valuestring;
+		sknf[i] = cJSON_GetObjectItemCaseSensitive(jobj, "skn")->valuestring;
+		sklf[i] = cJSON_GetObjectItemCaseSensitive(jobj, "skl")->valuestring;
 	}
 
 	std::pair<int, bool> paird;
 	std::unordered_map<std::string, std::pair<size_t, bool>> nowshowddsv;
-	for (obj = textures->child; obj != NULL; obj = obj->next)
+	for (jobj = textures->child; jobj != NULL; jobj = jobj->next)
 	{
-		paird = { 
-			cJSON_GetObjectItemCaseSensitive(obj, "texture")->valueint,
-			cJSON_GetObjectItemCaseSensitive(obj, "show")->valueint 
+		paird = {
+			cJSON_GetObjectItemCaseSensitive(jobj, "texture")->valueint,
+			cJSON_GetObjectItemCaseSensitive(jobj, "show")->valueint
 		};
-		nowshowddsv[cJSON_GetObjectItemCaseSensitive(obj, "name")->valuestring] = paird;
+		nowshowddsv[cJSON_GetObjectItemCaseSensitive(jobj, "name")->valuestring] = paird;
 	}
 
 	bool* setupanm = (bool*)calloc(pathsize, 1);
@@ -436,15 +437,15 @@ int main()
 	bool* showskeleton = (bool*)calloc(pathsize, 1);
 	bool showground = cJSON_GetObjectItemCaseSensitive(json, "showground")->valueint;
 	bool synchronizedtime = cJSON_GetObjectItemCaseSensitive(json, "synchronizedtime")->valueint;
-	for (i = 0, obj = config->child; obj != NULL; obj = obj->next, i++)
+	for (i = 0, jobj = config->child; jobj != NULL; jobj = jobj->next, i++)
 	{
-		setupanm[i] = cJSON_GetObjectItemCaseSensitive(obj, "setupanm")->valueint;
-		nowanm[i] = cJSON_GetObjectItemCaseSensitive(obj, "anmlist")->valueint;
-		playanm[i] = cJSON_GetObjectItemCaseSensitive(obj, "playanm")->valueint;
-		jumpnext[i] = cJSON_GetObjectItemCaseSensitive(obj, "jumpnext")->valueint;
-		gotostart[i] = cJSON_GetObjectItemCaseSensitive(obj, "gotostart")->valueint;
-		wireframe[i] = cJSON_GetObjectItemCaseSensitive(obj, "wireframe")->valueint;
-		showskeleton[i] = cJSON_GetObjectItemCaseSensitive(obj, "showskeleton")->valueint;
+		setupanm[i] = cJSON_GetObjectItemCaseSensitive(jobj, "setupanm")->valueint;
+		nowanm[i] = cJSON_GetObjectItemCaseSensitive(jobj, "anmlist")->valueint;
+		playanm[i] = cJSON_GetObjectItemCaseSensitive(jobj, "playanm")->valueint;
+		jumpnext[i] = cJSON_GetObjectItemCaseSensitive(jobj, "jumpnext")->valueint;
+		gotostart[i] = cJSON_GetObjectItemCaseSensitive(jobj, "gotostart")->valueint;
+		wireframe[i] = cJSON_GetObjectItemCaseSensitive(jobj, "wireframe")->valueint;
+		showskeleton[i] = cJSON_GetObjectItemCaseSensitive(jobj, "showskeleton")->valueint;
 	}
 
 	WNDCLASS window_class;
@@ -635,13 +636,14 @@ int main()
 	glEnable(GL_DEPTH_TEST);
 	glDepthFunc(GL_LESS);
 	glClearColor(.5f, .5f, .5f, 1.f);
+	glEnable(GL_SAMPLE_ALPHA_TO_COVERAGE);
 
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
 	ImGui::GetIO().IniFilename = NULL;
 	ImGui_ImplWin32_Init(window);
 	ImGui_ImplOpenGL3_Init("#version 130");
-	ImGui::StyleColorsDark(); 
+	ImGui::StyleColorsDark();
 
 	GLuint idone = loadDDS("glsl/map.dds");
 	glActiveTexture(GL_TEXTURE0 + idone);
@@ -856,7 +858,7 @@ int main()
 	float yaw = 90.f, pitch = 70.f;
 	float Deltatime = 0, Lastedtime = 0;
 
-	MSG msg{0};
+	MSG msg{ 0 };
 	char tmp[64];
 	uint32_t sklk = 0;
 	ShowWindow(window, TRUE);
@@ -897,7 +899,7 @@ int main()
 		ImGui::NewFrame();
 
 		ImGui::SetNextWindowPos(ImVec2(4, 4), ImGuiCond_Once);
-		ImGui::SetNextWindowSize(ImVec2(0, (float)height/2.f));
+		ImGui::SetNextWindowSize(ImVec2(0, (float)height / 2.f));
 		ImGui::Begin("Main", 0, ImGuiWindowFlags_AlwaysAutoResize);
 		ImGui::Checkbox("Show Ground", &showground);
 		ImGui::Checkbox("Synchronized Time", &synchronizedtime);
@@ -911,7 +913,7 @@ int main()
 				for (i = 0; i < myskn[k].Meshes.size(); i++)
 				{
 					ImGui::PushID(i);
-					ImGui::Text(myskn[k].Meshes[i].Name.c_str());
+					ImGui::Text(myskn[k].Meshes[i].Name);
 					ImGui::Checkbox("Show model", (bool*)&showmesh[k][i]);
 					if (showmesh[k][i])
 					{
@@ -948,43 +950,42 @@ int main()
 
 			for (k = 0; k < pathsize; k++)
 			{
-				obj = cJSON_CreateObject();
-				cJSON_AddItemToObject(obj, "name", cJSON_CreateString(name[k]));
-				cJSON_AddItemToObject(obj, "dds", cJSON_CreateString(ddsf[k]));
-				cJSON_AddItemToObject(obj, "anm", cJSON_CreateString(anmf[k]));
-				cJSON_AddItemToObject(obj, "skn", cJSON_CreateString(sknf[k]));
-				cJSON_AddItemToObject(obj, "skl", cJSON_CreateString(sklf[k]));
-				cJSON_AddItemToArray(pathss, obj);
+				jobj = cJSON_CreateObject();
+				cJSON_AddItemToObject(jobj, "name", cJSON_CreateString(name[k]));
+				cJSON_AddItemToObject(jobj, "dds", cJSON_CreateString(ddsf[k]));
+				cJSON_AddItemToObject(jobj, "anm", cJSON_CreateString(anmf[k]));
+				cJSON_AddItemToObject(jobj, "skn", cJSON_CreateString(sknf[k]));
+				cJSON_AddItemToObject(jobj, "skl", cJSON_CreateString(sklf[k]));
+				cJSON_AddItemToArray(pathss, jobj);
 
-				obj = cJSON_CreateObject();
-				cJSON_AddItemToObject(obj, "setupanm", cJSON_CreateBool(setupanm[k]));
-				cJSON_AddItemToObject(obj, "anmlist", cJSON_CreateNumber(nowanm[k]));
-				cJSON_AddItemToObject(obj, "playanm", cJSON_CreateBool(playanm[k]));
-				cJSON_AddItemToObject(obj, "jumpnext", cJSON_CreateBool(jumpnext[k]));
-				cJSON_AddItemToObject(obj, "gotostart", cJSON_CreateBool(gotostart[k]));
-				cJSON_AddItemToObject(obj, "wireframe", cJSON_CreateBool(wireframe[k]));
-				cJSON_AddItemToObject(obj, "showskeleton", cJSON_CreateBool(showskeleton[k]));
-				cJSON_AddItemToArray(configs, obj);
+				jobj = cJSON_CreateObject();
+				cJSON_AddItemToObject(jobj, "setupanm", cJSON_CreateBool(setupanm[k]));
+				cJSON_AddItemToObject(jobj, "anmlist", cJSON_CreateNumber(nowanm[k]));
+				cJSON_AddItemToObject(jobj, "playanm", cJSON_CreateBool(playanm[k]));
+				cJSON_AddItemToObject(jobj, "jumpnext", cJSON_CreateBool(jumpnext[k]));
+				cJSON_AddItemToObject(jobj, "gotostart", cJSON_CreateBool(gotostart[k]));
+				cJSON_AddItemToObject(jobj, "wireframe", cJSON_CreateBool(wireframe[k]));
+				cJSON_AddItemToObject(jobj, "showskeleton", cJSON_CreateBool(showskeleton[k]));
+				cJSON_AddItemToArray(configs, jobj);
 
 				for (i = 0; i < myskn[k].Meshes.size(); i++)
 				{
 					auto it = nowshowddsv.find(myskn[k].Meshes[i].Name);
 					if (it != nowshowddsv.end())
 					{
-						obj = cJSON_CreateObject();
-						cJSON_AddItemToObject(obj, "name", cJSON_CreateString(myskn[k].Meshes[i].Name.c_str()));
-						cJSON_AddItemToObject(obj, "texture", cJSON_CreateNumber(nowdds[k][i]));
-						cJSON_AddItemToObject(obj, "show", cJSON_CreateBool(showmesh[k][i]));
-						cJSON_AddItemToArray(texturess, obj);
+						jobj = cJSON_CreateObject();
+						cJSON_AddItemToObject(jobj, "name", cJSON_CreateString(myskn[k].Meshes[i].Name));
+						cJSON_AddItemToObject(jobj, "texture", cJSON_CreateNumber(nowdds[k][i]));
+						cJSON_AddItemToObject(jobj, "show", cJSON_CreateBool(showmesh[k][i]));
+						cJSON_AddItemToArray(texturess, jobj);
 					}
 				}
 			}
 
 			file = fopen("config.json", "wb");
-			fprintf(file, cJSON_Print(jsons));
+			fprintf(file, "%s", cJSON_Print(jsons));
 			fclose(file);
 		}
-		ImGui::End();	
 		for (k = 0; k < pathsize; k++)
 		{
 			bool dur = Time[k] > myanm[k][nowanm[k]].Duration;
@@ -1002,7 +1003,7 @@ int main()
 
 			if (synchronizedtime)
 				for (size_t o = 0; o < pathsize; o++)
-						Time[o] = Time[0];
+					Time[o] = Time[0];
 
 			if (setupanm[k])
 				SetupAnimation(&BoneTransforms[k], Time[k], &myanm[k][nowanm[k]], &myskl[k]);
@@ -1016,8 +1017,7 @@ int main()
 			glBindVertexArray(vertexarrayBuffer[k]);
 			glUniformMatrix4fv(mvprefet, 1, GL_FALSE, (float*)&mvp);
 			glUniformMatrix4fv(bonerefet, BoneTransforms[k].size(), GL_FALSE, (float*)&BoneTransforms[k][0]);
-			glEnable(GL_SAMPLE_ALPHA_TO_COVERAGE);
-			if(wireframe[k])
+			if (wireframe[k])
 				glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 			for (i = 0; i < myskn[k].Meshes.size(); i++)
 			{
@@ -1030,7 +1030,6 @@ int main()
 			}
 			if (wireframe[k])
 				glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-			glDisable(GL_SAMPLE_ALPHA_TO_COVERAGE);
 
 			if (showskeleton[k])
 			{
@@ -1068,7 +1067,53 @@ int main()
 				glEnable(GL_DEPTH_TEST);
 			}
 		}
+		if (ImGui::Button("Export Models"))
+		{
+			for (k = 0; k < pathsize; k++)
+			{
+				char* nameobj = (char*)calloc(strlen(name[k]) + 13, 1);
+				sprintf(nameobj, "export/%s.obj", name[k]);
+				FILE* fout = fopen(nameobj, "w");
+				int indexp = 1, size = 0;
+				for (i = 0; i < myskn[k].Meshes.size(); i++)
+				{
+					if (showmesh[k][i])
+					{
+						size += myskn[k].Meshes[i].IndexCount;
+						fprintf(fout, "o %s%s\n", name[k], myskn[k].Meshes[i].Name);
+						for (uint32_t o = 0; o < myskn[k].Meshes[i].IndexCount; o++)
+						{
+							uint16_t index = myskn[k].Meshes[i].Indices[o];
+							glm::vec3 Positions = myskn[k].Positions[index];
+							glm::vec4 BoneIndices = myskn[k].BoneIndices[index];
+							glm::vec4 BoneWeights = myskn[k].Weights[index];
 
+							glm::mat4 BoneTransform = BoneTransforms[k][int(BoneIndices[0])] * BoneWeights[0];
+							BoneTransform += BoneTransforms[k][int(BoneIndices[1])] * BoneWeights[1];
+							BoneTransform += BoneTransforms[k][int(BoneIndices[2])] * BoneWeights[2];
+							BoneTransform += BoneTransforms[k][int(BoneIndices[3])] * BoneWeights[3];
+
+							glm::vec3 glposition(BoneTransform * glm::vec4(Positions, 1.0));
+							fprintf(fout, "v %.6f %.6f %.6f\n", -glposition.x, glposition.y, glposition.z);
+						}
+						for (uint32_t o = 0; o < myskn[k].Meshes[i].IndexCount; o++)
+						{
+							uint16_t index = myskn[k].Meshes[i].Indices[o];
+							fprintf(fout, "vt %.6f %.6f\n", myskn[k].UVs[index].x, 1.f - myskn[k].UVs[index].y);
+						}
+						fprintf(fout, "s 1\n");
+						while (indexp < size)
+						{
+							fprintf(fout, "f %d/%d %d/%d %d/%d\n",
+								indexp, indexp, indexp + 1, indexp + 1, indexp + 2, indexp + 2);
+							indexp += 3;
+						}
+					}
+				}		
+				fclose(fout);
+			}
+		}
+		ImGui::End();
 		ImGui::Render();
 		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 		SwapBuffers(gldc);
