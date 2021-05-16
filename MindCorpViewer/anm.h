@@ -103,6 +103,8 @@ int openanm(Animation *myanm, const char* filename)
 {
 	uint32_t Offset = 0;
 	FILE *fp = fopen(filename, "rb");
+	if (fp == NULL)
+		printf("Error opening file: %s %d (%s)\n", filename, errno, strerror(errno));
 
 	char* Signature = (char*)calloc(9, sizeof(char));
 	fread(Signature, sizeof(uint8_t), 8, fp); Offset += 8;
@@ -218,7 +220,6 @@ int openanm(Animation *myanm, const char* filename)
 			}
 		}
 
-
 		for (uint32_t i = 0; i < BoneCount; ++i)
 		{
 			Boneanm BoneEntry;
@@ -287,7 +288,7 @@ int openanm(Animation *myanm, const char* filename)
 		for (uint32_t i = 0; i < BoneCount; ++i)
 		{
 			fread(Name, sizeof(char), 32, fp); Offset += 32;
-			myanm->Bones[i].Hash = StringToHash(Name);
+			myanm->Bones[i].Hash = StringToHash(Name, strlen(Name));
 
 			Offset += 4;
 			fseek(fp, Offset, 0);

@@ -55,7 +55,6 @@ bool touch[256];
 float zoom = 700;
 int width, height;
 bool active = true;
-size_t i = 0, k = 0;
 float mousex = 0, mousey = 0;
 int omx = 0, omy = 0, mx = 0, my = 0, state;
 LARGE_INTEGER Frequencye, Starte;
@@ -64,8 +63,7 @@ double GetTimeSinceStart()
 {
 	LARGE_INTEGER t_End;
 	QueryPerformanceCounter(&t_End);
-
-	return static_cast<float>(t_End.QuadPart - Starte.QuadPart) / Frequencye.QuadPart;
+	return (float)(t_End.QuadPart - Starte.QuadPart) / Frequencye.QuadPart;
 }
 
 struct DDS_PIXELFORMAT
@@ -101,6 +99,8 @@ struct DDS_HEADER
 GLuint loadDDS(const char* filename)
 {
 	FILE* fp = fopen(filename, "rb");
+	if(fp == NULL)
+		printf("Error opening file: %s %d (%s)\n", filename, errno, strerror(errno));
 
 	uint32_t DDS = MAKEFOURCC('D', 'D', 'S', ' ');
 	uint32_t DXT3 = MAKEFOURCC('D', 'X', 'T', '3');
@@ -152,19 +152,22 @@ GLuint loadDDS(const char* filename)
 		Height /= 2;
 	}
 
+	fclose(fp);
 	return mID;
 }
 
 GLuint loadShader(GLenum type, const char* filename)
 {
 	FILE* fp = fopen(filename, "rb");
+	if (fp == NULL)
+		printf("Error opening file: %s %d (%s)\n", filename, errno, strerror(errno));
 	fseek(fp, 0, SEEK_END);
 	long fsize = ftell(fp);
 	fseek(fp, 0, SEEK_SET);
 	char* string = new char[fsize + 1];
 	fread(string, fsize, 1, fp);
-	fclose(fp);
 	string[fsize] = 0;
+	fclose(fp);
 
 	GLint success;
 	GLuint shader = glCreateShader(type);
@@ -272,7 +275,8 @@ glm::mat4 computeMatricesFromInputs(glm::vec3& trans, float& yaw, float& pitch)
 
 	if (state == 1)
 	{
-		if (mx > 0 && mx < width && my > 0 && my < height && !ImGui::IsAnyWindowHovered() && !ImGui::IsAnyWindowFocused())
+		if (mx > 0 && mx < width && my > 0 && my < height && 
+			!ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow) && !ImGui::IsWindowFocused(ImGuiHoveredFlags_AnyWindow))
 		{
 			if (mousex != lastx)
 				yaw += mousex * .5f;
@@ -295,7 +299,8 @@ glm::mat4 computeMatricesFromInputs(glm::vec3& trans, float& yaw, float& pitch)
 
 	if (state == 2)
 	{
-		if (mx > 0 && mx < width && my > 0 && my < height && !ImGui::IsAnyWindowHovered())
+		if (mx > 0 && mx < width && my > 0 && my < height &&
+			!ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow) && !ImGui::IsWindowFocused(ImGuiHoveredFlags_AnyWindow))
 		{
 			if (mousex != lastx)
 			{
@@ -345,7 +350,7 @@ LRESULT WINAPI WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 
 	case WM_MOUSEWHEEL:
 		value = (int)(short)HIWORD(wParam);
-		if (!ImGui::IsAnyWindowHovered())
+		if (!ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow))
 		{
 			zoom -= value * .5f;
 			zoom = zoom < 1.f ? 1.f : zoom;
@@ -387,6 +392,8 @@ int main()
 	QueryPerformanceCounter(&Starte);
 
 	FILE* file = fopen("config.json", "rb");
+	if (file == NULL)
+		printf("Error opening file: config.json %d (%s)\n", errno, strerror(errno));
 	fseek(file, 0, SEEK_END);
 	long fsize = ftell(file);
 	fseek(file, 0, SEEK_SET);
@@ -395,10 +402,9 @@ int main()
 	fclose(file);
 
 	cJSON* json = cJSON_ParseWithLength(string, fsize);
-	cJSON* paths = cJSON_GetObjectItemCaseSensitive(json, "PATHS");
-	cJSON* config = cJSON_GetObjectItemCaseSensitive(json, "CONFIG");
-	cJSON* textures = cJSON_GetObjectItemCaseSensitive(json, "TEXTURES");
-
+	cJSON* paths = cJSON_GetObjectItem(json, "PATHS");
+	cJSON* config = cJSON_GetObjectItem(json, "CONFIG");
+	cJSON* textures = cJSON_GetObjectItem(json, "TEXTURES");
 	size_t pathsize = cJSON_GetArraySize(paths);
 
 	char** name = (char**)calloc(pathsize, 1);
@@ -408,13 +414,14 @@ int main()
 	char** sklf = (char**)calloc(pathsize, 1);
 
 	cJSON* jobj;
-	for (i = 0, jobj = paths->child; jobj != NULL; jobj = jobj->next, i++)
+	size_t oh = 0;
+	for (oh = 0, jobj = paths->child; jobj != NULL; jobj = jobj->next, oh++)
 	{
-		name[i] = cJSON_GetObjectItemCaseSensitive(jobj, "name")->valuestring;
-		ddsf[i] = cJSON_GetObjectItemCaseSensitive(jobj, "dds")->valuestring;
-		anmf[i] = cJSON_GetObjectItemCaseSensitive(jobj, "anm")->valuestring;
-		sknf[i] = cJSON_GetObjectItemCaseSensitive(jobj, "skn")->valuestring;
-		sklf[i] = cJSON_GetObjectItemCaseSensitive(jobj, "skl")->valuestring;
+		name[oh] = cJSON_GetObjectItem(jobj, "name")->valuestring;
+		ddsf[oh] = cJSON_GetObjectItem(jobj, "dds")->valuestring;
+		anmf[oh] = cJSON_GetObjectItem(jobj, "anm")->valuestring;
+		sknf[oh] = cJSON_GetObjectItem(jobj, "skn")->valuestring;
+		sklf[oh] = cJSON_GetObjectItem(jobj, "skl")->valuestring;
 	}
 
 	std::pair<int, bool> paird;
@@ -422,12 +429,13 @@ int main()
 	for (jobj = textures->child; jobj != NULL; jobj = jobj->next)
 	{
 		paird = {
-			cJSON_GetObjectItemCaseSensitive(jobj, "texture")->valueint,
-			cJSON_GetObjectItemCaseSensitive(jobj, "show")->valueint
+			cJSON_GetObjectItem(jobj, "texture")->valueint,
+			cJSON_GetObjectItem(jobj, "show")->valueint
 		};
-		nowshowddsv[cJSON_GetObjectItemCaseSensitive(jobj, "name")->valuestring] = paird;
+		nowshowddsv[cJSON_GetObjectItem(jobj, "name")->valuestring] = paird;
 	}
 
+	size_t oe = 0;
 	bool* setupanm = (bool*)calloc(pathsize, 1);
 	int* nowanm = (int*)calloc(pathsize, 4);
 	bool* playanm = (bool*)calloc(pathsize, 1);
@@ -435,17 +443,17 @@ int main()
 	bool* gotostart = (bool*)calloc(pathsize, 1);
 	bool* wireframe = (bool*)calloc(pathsize, 1);
 	bool* showskeleton = (bool*)calloc(pathsize, 1);
-	bool showground = cJSON_GetObjectItemCaseSensitive(json, "showground")->valueint;
-	bool synchronizedtime = cJSON_GetObjectItemCaseSensitive(json, "synchronizedtime")->valueint;
-	for (i = 0, jobj = config->child; jobj != NULL; jobj = jobj->next, i++)
+	bool showground = cJSON_GetObjectItem(json, "showground")->valueint;
+	bool synchronizedtime = cJSON_GetObjectItem(json, "synchronizedtime")->valueint;
+	for (oe = 0, jobj = config->child; jobj != NULL; jobj = jobj->next, oe++)
 	{
-		setupanm[i] = cJSON_GetObjectItemCaseSensitive(jobj, "setupanm")->valueint;
-		nowanm[i] = cJSON_GetObjectItemCaseSensitive(jobj, "anmlist")->valueint;
-		playanm[i] = cJSON_GetObjectItemCaseSensitive(jobj, "playanm")->valueint;
-		jumpnext[i] = cJSON_GetObjectItemCaseSensitive(jobj, "jumpnext")->valueint;
-		gotostart[i] = cJSON_GetObjectItemCaseSensitive(jobj, "gotostart")->valueint;
-		wireframe[i] = cJSON_GetObjectItemCaseSensitive(jobj, "wireframe")->valueint;
-		showskeleton[i] = cJSON_GetObjectItemCaseSensitive(jobj, "showskeleton")->valueint;
+		setupanm[oe] = cJSON_GetObjectItem(jobj, "setupanm")->valueint;
+		nowanm[oe] = cJSON_GetObjectItem(jobj, "anmlist")->valueint;
+		playanm[oe] = cJSON_GetObjectItem(jobj, "playanm")->valueint;
+		jumpnext[oe] = cJSON_GetObjectItem(jobj, "jumpnext")->valueint;
+		gotostart[oe] = cJSON_GetObjectItem(jobj, "gotostart")->valueint;
+		wireframe[oe] = cJSON_GetObjectItem(jobj, "wireframe")->valueint;
+		showskeleton[oe] = cJSON_GetObjectItem(jobj, "showskeleton")->valueint;
 	}
 
 	WNDCLASS window_class;
@@ -462,7 +470,7 @@ int main()
 	window_class.lpszClassName = "mindcorpviewer";
 
 	if (!RegisterClassA(&window_class)) {
-		printf("Failed to register window.\n");
+		printf("Failed to RegisterClassA: %d.\n", GetLastError());
 		scanf("press enter to exit.");
 		return 1;
 	}
@@ -489,7 +497,7 @@ int main()
 		0);
 
 	if (!window) {
-		printf("Failed to create window.\n");
+		printf("Failed to CreateWindowExA: %d.\n", GetLastError());
 		scanf("press enter to exit.");
 		return 1;
 	}
@@ -508,7 +516,7 @@ int main()
 	window_classe.lpszClassName = "Dummy_mindcorpviewer";
 
 	if (!RegisterClassA(&window_classe)) {
-		printf("Failed to register dummy OpenGL window.\n");
+		printf("Failed to RegisterClassA: %d.\n", GetLastError());
 		scanf("press enter to exit.");
 		return 1;
 	}
@@ -528,7 +536,7 @@ int main()
 		0);
 
 	if (!dummy_window) {
-		printf("Failed to create dummy OpenGL window.\n");
+		printf("Failed to CreateWindowExA dummy: %d.\n", GetLastError());
 		scanf("press enter to exit.");
 		return 1;
 	}
@@ -545,25 +553,25 @@ int main()
 	HDC dummy_dc = GetDC(dummy_window);
 	int pixel_formate = ChoosePixelFormat(dummy_dc, &pfd);
 	if (!pixel_formate) {
-		printf("Failed to find a suitable pixel format.\n");
+		printf("Failed to ChoosePixelFormat: %d.\n", GetLastError());
 		scanf("press enter to exit.");
 		return 1;
 	}
 	if (!SetPixelFormat(dummy_dc, pixel_formate, &pfd)) {
-		printf("Failed to set the pixel format.\n");
+		printf("Failed to SetPixelFormat: %d.\n", GetLastError());
 		scanf("press enter to exit.");
 		return 1;
 	}
 
 	HGLRC dummy_context = wglCreateContext(dummy_dc);
 	if (!dummy_context) {
-		printf("Failed to create a dummy OpenGL rendering context.\n");
+		printf("Failed to wglCreateContext dummy: %d.\n", GetLastError());
 		scanf("press enter to exit.");
 		return 1;
 	}
 
 	if (!wglMakeCurrent(dummy_dc, dummy_context)) {
-		printf("Failed to activate dummy OpenGL rendering context.\n");
+		printf("Failed to wglMakeCurrent dummy: %d.\n", GetLastError());
 		scanf("press enter to exit.");
 		return 1;
 	}
@@ -592,7 +600,7 @@ int main()
 	HDC real_dc = GetDC(window);
 	wglChoosePixelFormatARB(real_dc, pixel_format_attribs, 0, 1, &pixel_format, &num_formats);
 	if (!num_formats) {
-		printf("Failed to set the OpenGL 3.3 pixel format.\n");
+		printf("Failed to wglChoosePixelFormatARB: %d.\n", GetLastError());
 		scanf("press enter to exit.");
 		return 1;
 	}
@@ -600,7 +608,7 @@ int main()
 	PIXELFORMATDESCRIPTOR pfde;
 	DescribePixelFormat(real_dc, pixel_format, sizeof(pfde), &pfde);
 	if (!SetPixelFormat(real_dc, pixel_format, &pfde)) {
-		printf("Failed to set the OpenGL 3.3 pixel format.\n");
+		printf("Failed to SetPixelFormat: %d.\n", GetLastError());
 		scanf("press enter to exit.");
 		return 1;
 	}
@@ -614,19 +622,20 @@ int main()
 
 	HGLRC gl33_context = wglCreateContextAttribsARB(real_dc, 0, gl33_attribs);
 	if (!gl33_context) {
-		printf("Failed to create OpenGL 3.3 context.\n");
+		printf("Failed to wglCreateContextAttribsARB: %d.\n", GetLastError());
 		scanf("press enter to exit.");
 		return 1;
 	}
 
 	if (!wglMakeCurrent(real_dc, gl33_context)) {
-		printf("Failed to activate OpenGL 3.3 rendering context.\n");
+		printf("Failed to wglMakeCurrent: %d.\n", GetLastError());
 		scanf("press enter to exit.");
 		return 1;
 	}
 
 	if (!gladLoadGLLoader((GLADloadproc)GetAnyGLFuncAddress)) {
-		printf("gladLoadGLLoader() failed: Cannot load glad\n");
+		printf("Failed to gladLoadGLLoader.\n");
+		scanf("press enter to exit.");
 		return 1;
 	}
 
@@ -638,7 +647,6 @@ int main()
 	glClearColor(.5f, .5f, .5f, 1.f);
 	glEnable(GL_SAMPLE_ALPHA_TO_COVERAGE);
 
-	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
 	ImGui::GetIO().IniFilename = NULL;
 	ImGui_ImplWin32_Init(window);
@@ -646,6 +654,7 @@ int main()
 	ImGui::StyleColorsDark();
 
 	GLuint idone = loadDDS("glsl/map.dds");
+	glBindTexture(GL_TEXTURE_2D, idone);
 	glActiveTexture(GL_TEXTURE0 + idone);
 
 	GLuint shaderidmap = useshader("glsl/map.vert", "glsl/model.frag");
@@ -666,10 +675,10 @@ int main()
 	GLuint texrefet = glGetUniformLocation(shaderidmodel, "Diffuse");
 
 	float planebufvertex[] = {
-	500.f, 0.f, 500.f, 0.f,1.f,
-	500.f, 0.f,-500.f, 0.f,0.f,
-   -500.f, 0.f,-500.f, 1.f,0.f,
-   -500.f, 0.f, 500.f, 1.f,1.f
+		 500.f, 0.f, 500.f, 0.f,1.f,
+		 500.f, 0.f,-500.f, 0.f,0.f,
+		-500.f, 0.f,-500.f, 1.f,0.f,
+		-500.f, 0.f, 500.f, 1.f,1.f
 	};
 
 	uint32_t planebufindex[] = {
@@ -728,7 +737,7 @@ int main()
 	std::vector<std::vector<int>> nowdds(pathsize);
 	std::vector<std::vector<int>> showmesh(pathsize);
 
-	for (k = 0; k < pathsize; k++)
+	for (size_t k = 0; k < pathsize; k++)
 	{
 		speedanm[k] = 1.f;
 
@@ -737,7 +746,7 @@ int main()
 		fixbone(&myskn[k], &myskl[k]);
 
 		pathsanm[k] = ListDirectoryContents(anmf[k], "anm");
-		for (i = 0; i < pathsanm[k].size(); i++)
+		for (size_t i = 0; i < pathsanm[k].size(); i++)
 		{
 			Animation temp;
 			openanm(&temp, pathsanm[k][i].c_str());
@@ -747,11 +756,9 @@ int main()
 			nowanm[k] = 0;
 
 		pathsdds[k] = ListDirectoryContents(ddsf[k], "dds");
-		for (i = 0; i < pathsdds[k].size(); i++)
-			mydds[k].emplace_back(loadDDS(pathsdds[k][i].c_str()));
-
-		for (i = 0; i < mydds[k].size(); i++)
+		for (size_t i = 0; i < pathsdds[k].size(); i++)
 		{
+			mydds[k].emplace_back(loadDDS(pathsdds[k][i].c_str()));
 			glBindTexture(GL_TEXTURE_2D, mydds[k][i]);
 			glActiveTexture(GL_TEXTURE0 + mydds[k][i]);
 			mydds[k][i] = mydds[k][i] - 1;
@@ -785,7 +792,7 @@ int main()
 		glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, 0, 0);
 
 		indexBuffer[k].resize(myskn[k].Meshes.size());
-		for (i = 0; i < myskn[k].Meshes.size(); i++)
+		for (size_t i = 0; i < myskn[k].Meshes.size(); i++)
 		{
 			glGenBuffers(1, &indexBuffer[k][i]);
 			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexBuffer[k][i]);
@@ -795,15 +802,15 @@ int main()
 		glBindVertexArray(0);
 
 		BoneTransforms[k].resize(myskl[k].Bones.size());
-		for (i = 0; i < BoneTransforms[k].size(); i++)
+		for (size_t i = 0; i < BoneTransforms[k].size(); i++)
 			BoneTransforms[k][i] = glm::identity<glm::mat4>();
 
 		lines[k].resize(myskl[k].Bones.size() * 2);
-		for (i = 0; i < lines[k].size(); i++)
+		for (size_t i = 0; i < lines[k].size(); i++)
 			lines[k][i] = glm::vec4(1.f);
 
 		joints[k].resize(myskl[k].Bones.size());
-		for (i = 0; i < joints[k].size(); i++)
+		for (size_t i = 0; i < joints[k].size(); i++)
 			joints[k][i] = glm::vec4(1.f);
 
 		glGenVertexArrays(1, &vertexarraylineBuffer[k]);
@@ -830,7 +837,7 @@ int main()
 
 		glBindVertexArray(0);
 
-		for (i = 0; i < myskn[k].Meshes.size(); i++)
+		for (size_t i = 0; i < myskn[k].Meshes.size(); i++)
 		{
 			auto it = nowshowddsv.find(myskn[k].Meshes[i].Name);
 			if (it != nowshowddsv.end())
@@ -850,11 +857,11 @@ int main()
 		}
 	}
 
-	for (k = 0; k < pathsize; k++)
+	for (size_t k = 0; k < pathsize; k++)
 	{
-		for (i = 0; i < myskn[k].Meshes.size(); i++)
+		for (size_t i = 0; i < myskn[k].Meshes.size(); i++)
 			myskn[k].Meshes[i].texid = mydds[k][nowdds[k][i]];
-		for (i = 0; i < pathsdds[k].size(); i++)
+		for (size_t i = 0; i < pathsdds[k].size(); i++)
 		{
 			char* path = (char*)pathsdds[k][i].c_str();
 			char* pfile = path + strlen(path);
@@ -914,19 +921,19 @@ int main()
 
 		ImGui::SetNextWindowPos(ImVec2(4, 4), ImGuiCond_Once);
 		ImGui::SetNextWindowSize(ImVec2(0, (float)height / 2.f));
-		ImGui::Begin("Main", 0, ImGuiWindowFlags_AlwaysAutoResize);
+		ImGui::Begin("Main", 0, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoBringToFrontOnFocus);
 		ImGui::Checkbox("Show Ground", &showground);
 		ImGui::Checkbox("Synchronized Time", &synchronizedtime);
-		for (k = 0; k < pathsize; k++)
+		for (size_t k = 0; k < pathsize; k++)
 		{
 			if (ImGui::TreeNode(name[k]))
 			{
-				ImGui::PushID(k);
+				ImGui::PushID(k * 2);
 				ImGui::Checkbox("Wireframe", &wireframe[k]);
 				ImGui::Checkbox("Show Skeleton", &showskeleton[k]);
-				for (i = 0; i < myskn[k].Meshes.size(); i++)
+				for (size_t i = 0; i < myskn[k].Meshes.size(); i++)
 				{
-					ImGui::PushID(i);
+					ImGui::PushID(i * 3);
 					ImGui::Text(myskn[k].Meshes[i].Name);
 					ImGui::Checkbox("Show model", (bool*)&showmesh[k][i]);
 					if (showmesh[k][i])
@@ -942,66 +949,14 @@ int main()
 				ImGui::Checkbox("Play / Stop", &playanm[k]);
 				ImGui::Checkbox("Go To Start", &gotostart[k]);
 				ImGui::Checkbox("Jump To Next", &jumpnext[k]);
-				ImGui::SliderFloat("Speed", &speedanm[k], 0.0001f, 5.f, "%.4f");
-				ImGui::SliderFloat("Time", &Time[k], 0.0001f, myanm[k][nowanm[k]].Duration, "%.4f");
+				ImGui::Text("CTRL+Click Change To Input");
+				ImGui::SliderFloat("Speed", &speedanm[k], 0.00001f, 10.f, "%.5f");
+				ImGui::SliderFloat("Time", &Time[k], 0.00001f, myanm[k][nowanm[k]].Duration, "%.5f");
 				ListBox("List", &nowanm[k], pathsanm[k]);
 				ImGui::PopID();
 				ImGui::TreePop();
 			}
-		}
-		if (ImGui::Button("Save Configuration"))
-		{
-			cJSON* jsons = cJSON_CreateObject();
-			cJSON_AddItemToObject(jsons, "showground", cJSON_CreateBool(showground));
-			cJSON_AddItemToObject(jsons, "synchronizedtime", cJSON_CreateBool(synchronizedtime));
 
-			cJSON* pathss = cJSON_CreateArray();
-			cJSON* configs = cJSON_CreateArray();
-			cJSON* texturess = cJSON_CreateArray();
-			cJSON_AddItemToObject(jsons, "PATHS", pathss);
-			cJSON_AddItemToObject(jsons, "CONFIG", configs);
-			cJSON_AddItemToObject(jsons, "TEXTURES", texturess);
-
-			for (k = 0; k < pathsize; k++)
-			{
-				jobj = cJSON_CreateObject();
-				cJSON_AddItemToObject(jobj, "name", cJSON_CreateString(name[k]));
-				cJSON_AddItemToObject(jobj, "dds", cJSON_CreateString(ddsf[k]));
-				cJSON_AddItemToObject(jobj, "anm", cJSON_CreateString(anmf[k]));
-				cJSON_AddItemToObject(jobj, "skn", cJSON_CreateString(sknf[k]));
-				cJSON_AddItemToObject(jobj, "skl", cJSON_CreateString(sklf[k]));
-				cJSON_AddItemToArray(pathss, jobj);
-
-				jobj = cJSON_CreateObject();
-				cJSON_AddItemToObject(jobj, "setupanm", cJSON_CreateBool(setupanm[k]));
-				cJSON_AddItemToObject(jobj, "anmlist", cJSON_CreateNumber(nowanm[k]));
-				cJSON_AddItemToObject(jobj, "playanm", cJSON_CreateBool(playanm[k]));
-				cJSON_AddItemToObject(jobj, "jumpnext", cJSON_CreateBool(jumpnext[k]));
-				cJSON_AddItemToObject(jobj, "gotostart", cJSON_CreateBool(gotostart[k]));
-				cJSON_AddItemToObject(jobj, "wireframe", cJSON_CreateBool(wireframe[k]));
-				cJSON_AddItemToObject(jobj, "showskeleton", cJSON_CreateBool(showskeleton[k]));
-				cJSON_AddItemToArray(configs, jobj);
-
-				for (i = 0; i < myskn[k].Meshes.size(); i++)
-				{
-					auto it = nowshowddsv.find(myskn[k].Meshes[i].Name);
-					if (it != nowshowddsv.end())
-					{
-						jobj = cJSON_CreateObject();
-						cJSON_AddItemToObject(jobj, "name", cJSON_CreateString(myskn[k].Meshes[i].Name));
-						cJSON_AddItemToObject(jobj, "texture", cJSON_CreateNumber(nowdds[k][i]));
-						cJSON_AddItemToObject(jobj, "show", cJSON_CreateBool(showmesh[k][i]));
-						cJSON_AddItemToArray(texturess, jobj);
-					}
-				}
-			}
-
-			file = fopen("config.json", "wb");
-			fprintf(file, "%s", cJSON_Print(jsons));
-			fclose(file);
-		}
-		for (k = 0; k < pathsize; k++)
-		{
 			bool dur = Time[k] > myanm[k][nowanm[k]].Duration;
 			if (playanm[k] && !dur)
 				Time[k] += Deltatime * speedanm[k];
@@ -1016,14 +971,14 @@ int main()
 			}
 
 			if (synchronizedtime)
-				for (size_t o = 0; o < pathsize; o++)
-					Time[o] = Time[0];
+				for (size_t i = 0; i < pathsize; i++)
+					Time[i] = Time[0];
 
 			if (setupanm[k])
 				SetupAnimation(&BoneTransforms[k], Time[k], &myanm[k][nowanm[k]], &myskl[k]);
 			else
 			{
-				for (i = 0; i < BoneTransforms[k].size(); i++)
+				for (size_t i = 0; i < BoneTransforms[k].size(); i++)
 					BoneTransforms[k][i] = glm::identity<glm::mat4>();
 			}
 
@@ -1033,7 +988,7 @@ int main()
 			glUniformMatrix4fv(bonerefet, BoneTransforms[k].size(), GL_FALSE, (float*)&BoneTransforms[k][0]);
 			if (wireframe[k])
 				glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-			for (i = 0; i < myskn[k].Meshes.size(); i++)
+			for (size_t i = 0; i < myskn[k].Meshes.size(); i++)
 			{
 				if (showmesh[k][i])
 				{
@@ -1048,7 +1003,7 @@ int main()
 			if (showskeleton[k])
 			{
 				sklk = 0;
-				for (i = 0; i < myskl[k].Bones.size(); i++)
+				for (size_t i = 0; i < myskl[k].Bones.size(); i++)
 				{
 					int16_t parentid = myskl[k].Bones[i].ParentID;
 					if (parentid != -1)
@@ -1058,7 +1013,7 @@ int main()
 					}
 				}
 
-				for (i = 0; i < BoneTransforms[k].size(); i++)
+				for (size_t i = 0; i < BoneTransforms[k].size(); i++)
 					joints[k][i] = BoneTransforms[k][i] * myskl[k].Bones[i].GlobalMatrix * glm::vec4(1.f);
 
 				glDisable(GL_DEPTH_TEST);
@@ -1081,16 +1036,71 @@ int main()
 				glEnable(GL_DEPTH_TEST);
 			}
 		}
+		if (ImGui::Button("Save Configuration"))
+		{
+			cJSON* jsons = cJSON_CreateObject();
+			cJSON_AddItemToObject(jsons, "showground", cJSON_CreateBool(showground));
+			cJSON_AddItemToObject(jsons, "synchronizedtime", cJSON_CreateBool(synchronizedtime));
+
+			cJSON* pathss = cJSON_CreateArray();
+			cJSON* configs = cJSON_CreateArray();
+			cJSON* texturess = cJSON_CreateArray();
+			cJSON_AddItemToObject(jsons, "PATHS", pathss);
+			cJSON_AddItemToObject(jsons, "CONFIG", configs);
+			cJSON_AddItemToObject(jsons, "TEXTURES", texturess);
+
+			for (size_t k = 0; k < pathsize; k++)
+			{
+				jobj = cJSON_CreateObject();
+				cJSON_AddItemToObject(jobj, "name", cJSON_CreateString(name[k]));
+				cJSON_AddItemToObject(jobj, "dds", cJSON_CreateString(ddsf[k]));
+				cJSON_AddItemToObject(jobj, "anm", cJSON_CreateString(anmf[k]));
+				cJSON_AddItemToObject(jobj, "skn", cJSON_CreateString(sknf[k]));
+				cJSON_AddItemToObject(jobj, "skl", cJSON_CreateString(sklf[k]));
+				cJSON_AddItemToArray(pathss, jobj);
+
+				jobj = cJSON_CreateObject();
+				cJSON_AddItemToObject(jobj, "setupanm", cJSON_CreateBool(setupanm[k]));
+				cJSON_AddItemToObject(jobj, "anmlist", cJSON_CreateNumber(nowanm[k]));
+				cJSON_AddItemToObject(jobj, "playanm", cJSON_CreateBool(playanm[k]));
+				cJSON_AddItemToObject(jobj, "jumpnext", cJSON_CreateBool(jumpnext[k]));
+				cJSON_AddItemToObject(jobj, "gotostart", cJSON_CreateBool(gotostart[k]));
+				cJSON_AddItemToObject(jobj, "wireframe", cJSON_CreateBool(wireframe[k]));
+				cJSON_AddItemToObject(jobj, "showskeleton", cJSON_CreateBool(showskeleton[k]));
+				cJSON_AddItemToArray(configs, jobj);
+
+				for (size_t i = 0; i < myskn[k].Meshes.size(); i++)
+				{
+					auto it = nowshowddsv.find(myskn[k].Meshes[i].Name);
+					if (it != nowshowddsv.end())
+					{
+						jobj = cJSON_CreateObject();
+						cJSON_AddItemToObject(jobj, "name", cJSON_CreateString(myskn[k].Meshes[i].Name));
+						cJSON_AddItemToObject(jobj, "texture", cJSON_CreateNumber(nowdds[k][i]));
+						cJSON_AddItemToObject(jobj, "show", cJSON_CreateBool(showmesh[k][i]));
+						cJSON_AddItemToArray(texturess, jobj);
+					}
+				}
+			}
+
+			file = fopen("config.json", "wb");
+			if (file == NULL)
+				printf("Error opening file: config.json %d (%s)\n", errno, strerror(errno));
+			fprintf(file, "%s", cJSON_Print(jsons));
+			fclose(file);
+		}
 		if (ImGui::Button("Export Models"))
 		{
-			for (k = 0; k < pathsize; k++)
+			for (size_t k = 0; k < pathsize; k++)
 			{
 				int indexp = 1, size = 0;
 				char* nameobj = (char*)calloc(strlen(name[k]) + 13, 1);
 				sprintf(nameobj, "export/%s.obj", name[k]);
 				FILE* fout = fopen(nameobj, "w");
+				if (fout == NULL)
+					printf("Error opening file: %s %d (%s)\n", nameobj, errno, strerror(errno));
 				fprintf(fout, "mtllib %s.mtl\n", name[k]);
-				for (i = 0; i < myskn[k].Meshes.size(); i++)
+				for (size_t i = 0; i < myskn[k].Meshes.size(); i++)
 				{
 					if (showmesh[k][i])
 					{
@@ -1136,7 +1146,9 @@ int main()
 				nameobj = (char*)calloc(strlen(name[k]) + 13, 1);
 				sprintf(nameobj, "export/%s.mtl", name[k]);
 				fout = fopen(nameobj, "w");
-				for (i = 0; i < pathsdds[k].size(); i++)
+				if (fout == NULL)
+					printf("Error opening file: %s %d (%s)\n", nameobj, errno, strerror(errno));
+				for (size_t i = 0; i < pathsdds[k].size(); i++)
 				{
 					fprintf(fout, "newmtl %s%d\n", name[k], i);
 					fprintf(fout, "map_Kd %s\n\n", pathsdds[k][i].c_str());
@@ -1145,6 +1157,16 @@ int main()
 			}
 		}
 		ImGui::End();
+		#ifdef _DEBUG
+		ImGui::ShowMetricsWindow();
+		ImGui::Begin("Dear ImGui Style Editor", NULL, ImGuiWindowFlags_AlwaysAutoResize);
+		ImGui::ShowStyleEditor();
+		ImGui::End();
+		ImGui::SetWindowCollapsed("Dear ImGui Style Editor", true, ImGuiCond_Once);
+		ImGui::SetWindowCollapsed("Dear ImGui Metrics/Debugger", true, ImGuiCond_Once);
+		ImGui::SetWindowPos("Dear ImGui Style Editor", ImVec2(width / 1.75f, 73), ImGuiCond_Once);
+		ImGui::SetWindowPos("Dear ImGui Metrics/Debugger", ImVec2(width / 1.75f, 50), ImGuiCond_Once);
+		#endif
 		ImGui::Render();
 		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 		SwapBuffers(gldc);

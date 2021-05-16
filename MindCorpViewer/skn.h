@@ -1,12 +1,11 @@
 //author https://github.com/autergame
 #pragma once
 
-uint32_t FNV1Hash(const std::string& a_String)
+uint32_t FNV1Hash(char* str, size_t strlen)
 {
 	size_t Hash = 0x811c9dc5;
-	const char* Chars = a_String.c_str();
-	for (size_t i = 0; i < a_String.length(); i++)
-		Hash = (Hash ^ tolower(Chars[i])) * 0x01000193;
+	for (size_t i = 0; i < strlen; i++)
+		Hash = (Hash ^ tolower(str[i])) * 0x01000193;
 	return Hash;
 }
 
@@ -46,6 +45,8 @@ int openskn(Skin *myskn, const char* filename)
 {
 	uint32_t Offset = 0;
 	FILE *fp = fopen(filename, "rb");
+	if (fp == NULL)
+		printf("Error opening file: %s %d (%s)\n", filename, errno, strerror(errno));
 
 	uint32_t Signature = 0;
 	fread(&Signature, sizeof(uint32_t), 1, fp); Offset += 4;
@@ -177,7 +178,7 @@ int openskn(Skin *myskn, const char* filename)
 		for (uint32_t i = 0; i < SubMeshHeaderCount; i++)
 		{
 			myskn->Meshes[i].Name = SubMeshHeaders[i].Name;
-			myskn->Meshes[i].Hash = FNV1Hash(SubMeshHeaders[i].Name);
+			myskn->Meshes[i].Hash = FNV1Hash(SubMeshHeaders[i].Name, strlen(SubMeshHeaders[i].Name));
 
 			myskn->Meshes[i].IndexCount = SubMeshHeaders[i].IndexCount;
 			myskn->Meshes[i].Indices = &myskn->Indices[SubMeshHeaders[i].IndexOffset];

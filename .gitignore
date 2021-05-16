@@ -1,6 +1,7 @@
 .vs/
-*.exp
-*.lib
+*.pdb
+*.iobj
+*.ipdb
 Debug/
 MindCorpViewer/Debug/
 MindCorpViewer/DebugWR/

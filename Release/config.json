@@ -3,33 +3,17 @@
 	"synchronizedtime": true,
 	"PATHS": [
 		{
-			"name": "kindred",
+			"name": "gwen",
 			"dds": "skinone",
-			"anm": "skinone\\animations",
-			"skn": "skinone\\kindred_skin03.pie_c_10_16.skn",
-			"skl": "skinone\\kindred_skin03.pie_c_10_16.skl"
-		}, 
-		{
-			"name": "wolf",
-			"dds": "skintwo",
-			"anm": "skintwo\\animations",
-			"skn": "skintwo\\kindredwolf_skin03.pie_c_10_16.skn",
-			"skl": "skintwo\\kindredwolf_skin03.pie_c_10_16.skl"
+			"anm": "skinone\\Animations",
+			"skn": "skinone\\gwen_base.gwen.skn",
+			"skl": "skinone\\gwen_base.gwen.skl"
 		}
 	],
 	"CONFIG": [
 		{
 			"setupanm": true,
-			"anmlist": 0,
-			"playanm": false,
-			"jumpnext": false,
-			"gotostart": true,
-			"wireframe": false,
-			"showskeleton": false
-		}, 
-		{
-			"setupanm": true,
-			"anmlist": 0,
+			"anmlist": 3,
 			"playanm": false,
 			"jumpnext": false,
 			"gotostart": true,
@@ -39,44 +23,29 @@
 	],
 	"TEXTURES": [
 		{
-			"name": "Body",
-			"texture": 2,
-			"show": true
-		}, 
-		{
-			"name": "Recallface",
-			"texture": 2,
-			"show": true
-		}, 
-		{
-			"name": "Maskface",
-			"texture": 2,
-			"show": false
-		}, 
-		{
-			"name": "Weapon",
-			"texture": 2,
-			"show": true
-		}, 
-		{
-			"name": "Props",
+			"name": "Doll",
 			"texture": 0,
 			"show": true
 		}, 
 		{
-			"name": "SpiritWisp",
+			"name": "Scissors",
+			"texture": 2,
+			"show": true
+		}, 
+		{
+			"name": "Scissors_A_Smear",
+			"texture": 3,
+			"show": true
+		}, 
+		{
+			"name": "Needle",
+			"texture": 2,
+			"show": true
+		}, 
+		{
+			"name": "Body",
 			"texture": 1,
 			"show": true
-		}, 
-		{
-			"name": "Wolf_Body",
-			"texture": 0,
-			"show": true
-		}, 
-		{
-			"name": "Apple",
-			"texture": 0,
-			"show": false
 		}
 	]
 }

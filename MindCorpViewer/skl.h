@@ -52,29 +52,27 @@ void RecursiveInvertGlobalMatrices(glm::mat4 Parent, Bone* Bone)
 		RecursiveInvertGlobalMatrices(Global, Bone->Children[i]);
 }
 
-uint32_t StringToHash(const std::string& s)
+uint32_t StringToHash(char* str, size_t strlen)
 {
-	uint32_t hash = 0;
-	uint32_t temp = 0;
-
-	for (auto& c : s)
+	uint32_t hash = 0, temp = 0;
+	for (size_t i = 0; i < strlen; i++)
 	{
-		hash = (hash << 4) + tolower(c);
+		hash = (hash << 4) + tolower(str[i]);
 		temp = hash & 0xf0000000;
-
 		if (temp != 0)
 		{
 			hash = hash ^ (temp >> 24);
 			hash = hash ^ temp;
 		}
 	}
-
 	return hash;
 }
 
 int openskl(Skeleton *myskl, const char* filename)
 {
 	FILE *fp = fopen(filename, "rb");
+	if (fp == NULL)
+		printf("Error opening file: %s %d (%s)\n", filename, errno, strerror(errno));
 	
 	fseek(fp, 4, 0);
 	fread(&myskl->Type, sizeof(uint32_t), 1, fp);
@@ -93,7 +91,7 @@ int openskl(Skeleton *myskl, const char* filename)
 			Bone& Bone = myskl->Bones[i];
 
 			fread(Name, sizeof(char), 32, fp);
-			Bone.Hash = StringToHash(Name);
+			Bone.Hash = StringToHash(Name, strlen(Name));
 			Bone.Name = Name;
 
 			Bone.ID = i;
@@ -270,9 +268,9 @@ void fixbone(Skin* skn, Skeleton* skl)
 {
 	for (uint32_t i = 0; i < skn->BoneIndices.size(); i++)
 	{
-		for (uint32_t k = 0; k < 4; k++)
-		{
-			skn->BoneIndices[i][k] = (float)skl->BoneIndices[(uint32_t)skn->BoneIndices[i][k]];
-		}
+		skn->BoneIndices[i][0] = (float)skl->BoneIndices[(uint32_t)skn->BoneIndices[i][0]];
+		skn->BoneIndices[i][1] = (float)skl->BoneIndices[(uint32_t)skn->BoneIndices[i][1]];
+		skn->BoneIndices[i][2] = (float)skl->BoneIndices[(uint32_t)skn->BoneIndices[i][2]];
+		skn->BoneIndices[i][3] = (float)skl->BoneIndices[(uint32_t)skn->BoneIndices[i][3]];
 	}
 }
