@@ -1,0 +1,51 @@
+{
+	"showground": true,
+	"synchronizedtime": true,
+	"PATHS": [
+		{
+			"name": "gwen",
+			"dds": "skinone",
+			"anm": "skinone\\Animations",
+			"skn": "skinone\\gwen_base.gwen.skn",
+			"skl": "skinone\\gwen_base.gwen.skl"
+		}
+	],
+	"CONFIG": [
+		{
+			"setupanm": true,
+			"anmlist": 3,
+			"playanm": false,
+			"jumpnext": false,
+			"gotostart": true,
+			"wireframe": false,
+			"showskeleton": false
+		}
+	],
+	"TEXTURES": [
+		{
+			"name": "Doll",
+			"texture": 0,
+			"show": true
+		}, 
+		{
+			"name": "Scissors",
+			"texture": 2,
+			"show": true
+		}, 
+		{
+			"name": "Scissors_A_Smear",
+			"texture": 3,
+			"show": true
+		}, 
+		{
+			"name": "Needle",
+			"texture": 2,
+			"show": true
+		}, 
+		{
+			"name": "Body",
+			"texture": 1,
+			"show": true
+		}
+	]
+}

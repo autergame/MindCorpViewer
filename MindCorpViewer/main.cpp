@@ -1,19 +1,23 @@
 //author https://github.com/autergame
 #define _CRT_SECURE_NO_WARNINGS
 #define GLM_FORCE_XYZW_ONLY
+#pragma comment(lib, "opengl32")
+#pragma comment(lib, "glfw3")
+#include <windows.h>
 #include <glad/glad.h>
+#include <GLFW/glfw3.h>
+#include <GLFW/glfw3native.h>
 #include <glm/glm.hpp>
 #include <glm/gtc/type_ptr.hpp>
 #include <glm/gtx/transform.hpp>
 #include <glm/gtx/quaternion.hpp>
 #include <glm/gtx/compatibility.hpp>
 #include <imgui/imgui.h>
-#include <imgui/imgui_impl_win32.h>
+#include <imgui/imgui_impl_glfw.h>
 #include <imgui/imgui_impl_opengl3.h>
 #include <imgui/imgui_internal.h>
 #include <unordered_map>
 #include <algorithm>
-#include <windows.h>
 #include <bitset>
 #include <string>
 #include <vector>
@@ -23,40 +27,16 @@
 #include "anm.h"
 #include "cJSON.h"
 
-typedef HGLRC WINAPI wglCreateContextAttribsARB_type(HDC hdc, HGLRC hShareContext,
-	const int* attribList);
-wglCreateContextAttribsARB_type* wglCreateContextAttribsARB;
+void _assert(char const* msg, char const* file, unsigned line)
+{
+	fprintf(stderr, "ERROR: %s %s %d\n", msg, file, line);
+	scanf("press enter to exit.");
+	exit(1);
+}
+#define myassert(expression) if (expression) { _assert(#expression, __FILE__, __LINE__); }
 
-#define WGL_CONTEXT_MAJOR_VERSION_ARB             0x2091
-#define WGL_CONTEXT_MINOR_VERSION_ARB             0x2092
-#define WGL_CONTEXT_PROFILE_MASK_ARB              0x9126
-
-#define WGL_CONTEXT_CORE_PROFILE_BIT_ARB          0x00000001
-
-typedef BOOL WINAPI wglChoosePixelFormatARB_type(HDC hdc, const int* piAttribIList,
-	const FLOAT* pfAttribFList, UINT nMaxFormats, int* piFormats, UINT* nNumFormats);
-wglChoosePixelFormatARB_type* wglChoosePixelFormatARB;
-
-#define WGL_DRAW_TO_WINDOW_ARB                    0x2001
-#define WGL_ACCELERATION_ARB                      0x2003
-#define WGL_SUPPORT_OPENGL_ARB                    0x2010
-#define WGL_DOUBLE_BUFFER_ARB                     0x2011
-#define WGL_PIXEL_TYPE_ARB                        0x2013
-#define WGL_COLOR_BITS_ARB                        0x2014
-#define WGL_DEPTH_BITS_ARB                        0x2022
-#define WGL_STENCIL_BITS_ARB                      0x2023
-#define WGL_SAMPLE_BUFFERS_ARB                    0x2041
-#define WGL_SAMPLES_ARB                           0x2042
-
-#define WGL_FULL_ACCELERATION_ARB                 0x2027
-#define WGL_TYPE_RGBA_ARB                         0x202B
-
-bool touch[256];
-float zoom = 700;
-int width, height;
-bool active = true;
-float mousex = 0, mousey = 0;
-int omx = 0, omy = 0, mx = 0, my = 0, state;
+float zoom = 700, mousex = 0, mousey = 0;
+int omx = 0, omy = 0, mx = 0, my = 0, state, width, height;
 LARGE_INTEGER Frequencye, Starte;
 
 double GetTimeSinceStart()
@@ -211,18 +191,7 @@ GLuint useshader(const char* vertexfile, const char* fragmentfile)
 	return shaderid;
 }
 
-void* GetAnyGLFuncAddress(const char* name)
-{
-	void* p = (void*)wglGetProcAddress(name);
-	if (p == 0 || (p == (void*)0x1) || (p == (void*)0x2) || (p == (void*)0x3) || (p == (void*)-1))
-	{
-		HMODULE module = LoadLibraryA("opengl32.dll");
-		p = (void*)GetProcAddress(module, name);
-	}
-	return p;
-}
-
-std::vector<std::string> ListDirectoryContents(const char* sDir, char* ext)
+std::vector<std::string> ListDirectoryContents(const char* sDir, const char* ext)
 {
 	WIN32_FIND_DATA fdFile;
 	HANDLE hFind = NULL;
@@ -276,7 +245,7 @@ glm::mat4 computeMatricesFromInputs(glm::vec3& trans, float& yaw, float& pitch)
 	if (state == 1)
 	{
 		if (mx > 0 && mx < width && my > 0 && my < height && 
-			!ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow) && !ImGui::IsWindowFocused(ImGuiHoveredFlags_AnyWindow))
+			!ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow) && !ImGui::IsWindowFocused(ImGuiFocusedFlags_AnyWindow))
 		{
 			if (mousex != lastx)
 				yaw += mousex * .5f;
@@ -300,7 +269,7 @@ glm::mat4 computeMatricesFromInputs(glm::vec3& trans, float& yaw, float& pitch)
 	if (state == 2)
 	{
 		if (mx > 0 && mx < width && my > 0 && my < height &&
-			!ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow) && !ImGui::IsWindowFocused(ImGuiHoveredFlags_AnyWindow))
+			!ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow))
 		{
 			if (mousex != lastx)
 			{
@@ -320,70 +289,52 @@ glm::mat4 computeMatricesFromInputs(glm::vec3& trans, float& yaw, float& pitch)
 	return glm::perspective(glm::radians(45.f), (float)width / (float)height, 0.1f, 10000.0f) * viewmatrix;
 }
 
-extern LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
-LRESULT WINAPI WindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
 {
-	if (ImGui_ImplWin32_WndProcHandler(hWnd, uMsg, wParam, lParam))
-		return true;
-
-	int value;
-	switch (uMsg)
+	if (!ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow))
 	{
-	case WM_SIZE:
-		width = LOWORD(lParam);
-		height = HIWORD(lParam);
-		glViewport(0, 0, width, height);
-		PostMessage(hWnd, WM_PAINT, 0, 0);
-		break;
-
-	case WM_CLOSE:
-		active = FALSE;
-		break;
-
-	case WM_KEYDOWN:
-		touch[wParam] = TRUE;
-		break;
-
-	case WM_KEYUP:
-		touch[wParam] = FALSE;
-		break;
-
-	case WM_MOUSEWHEEL:
-		value = (int)(short)HIWORD(wParam);
-		if (!ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow))
-		{
-			zoom -= value * .5f;
-			zoom = zoom < 1.f ? 1.f : zoom;
-		}
-		break;
-
-	case WM_LBUTTONDOWN:
-	case WM_RBUTTONDOWN:
-		SetCapture(hWnd);
-		mx = LOWORD(lParam);
-		my = HIWORD(lParam);
-		if (uMsg == WM_LBUTTONDOWN)
-			state = 1;
-		if (uMsg == WM_RBUTTONDOWN)
-			state = 2;
-		break;
-
-	case WM_LBUTTONUP:
-	case WM_RBUTTONUP:
-		ReleaseCapture();
-		state = 0;
-		break;
-
-	case WM_MOUSEMOVE:
-		omx = mx;
-		omy = my;
-		mx = (int)(short)LOWORD(lParam);
-		my = (int)(short)HIWORD(lParam);
-		mousex = float(mx - omx);
-		mousey = float(my - omy);
-		break;
+		zoom -= ((float)yoffset * 60) * .5f;
+		zoom = zoom < 1.f ? 1.f : zoom;
 	}
-	return DefWindowProc(hWnd, uMsg, wParam, lParam);
+}
+
+void cursor_position_callback(GLFWwindow* window, double xpos, double ypos)
+{
+	omx = mx;
+	omy = my;
+	mx = (int)xpos;
+	my = (int)ypos;
+	mousex = float(mx - omx);
+	mousey = float(my - omy);
+}
+
+void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
+{
+	double xpos, ypos;
+	glfwGetCursorPos(window, &xpos, &ypos);
+	mx = (int)xpos; my = (int)ypos;
+	if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS)
+	{
+		state = 1;
+		return;
+	}
+	if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS)
+	{
+		state = 2;
+		return;
+	}
+	if (action == GLFW_RELEASE)
+	{
+		state = 0;
+		return;
+	}
+}
+
+void glfw_error_callback(int error, const char* description)
+{
+	fprintf(stderr, "Glfw Error %d: %s\n", error, description);
+	scanf("press enter to exit.");
+	exit(1);
 }
 
 int main()
@@ -456,188 +407,34 @@ int main()
 		showskeleton[oe] = cJSON_GetObjectItem(jobj, "showskeleton")->valueint;
 	}
 
-	WNDCLASS window_class;
-	window_class.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
-	window_class.lpfnWndProc = (WNDPROC)WindowProc;
-	window_class.cbClsExtra = 0;
-	window_class.cbWndExtra = 0;
-	window_class.hInstance = GetModuleHandle(0);
-	window_class.hIcon = LoadIcon(NULL, IDI_WINLOGO);
-	window_class.hCursor = LoadCursor(0, IDC_ARROW);
-	window_class.hbrBackground = 0;
-	window_class.hbrBackground = NULL;
-	window_class.lpszMenuName = NULL;
-	window_class.lpszClassName = "mindcorpviewer";
-
-	if (!RegisterClassA(&window_class)) {
-		printf("Failed to RegisterClassA: %d.\n", GetLastError());
-		scanf("press enter to exit.");
-		return 1;
-	}
-
 	RECT rectScreen;
-	int width = 1024, height = 600;
+	width = 1024, height = 576;
 	HWND hwndScreen = GetDesktopWindow();
 	GetWindowRect(hwndScreen, &rectScreen);
 	int PosX = ((rectScreen.right - rectScreen.left) / 2 - width / 2);
 	int PosY = ((rectScreen.bottom - rectScreen.top) / 2 - height / 2);
 
-	HWND window = CreateWindowExA(
-		0,
-		window_class.lpszClassName,
-		"OpenGL Window",
-		WS_OVERLAPPEDWINDOW | WS_CLIPSIBLINGS | WS_CLIPCHILDREN,
-		PosX,
-		PosY,
-		width,
-		height,
-		0,
-		0,
-		window_class.hInstance,
-		0);
+	glfwSetErrorCallback(glfw_error_callback);
+	myassert(glfwInit() == GLFW_FALSE)
 
-	if (!window) {
-		printf("Failed to CreateWindowExA: %d.\n", GetLastError());
-		scanf("press enter to exit.");
-		return 1;
-	}
+	glfwWindowHint(GLFW_SAMPLES, 4);
+	glfwWindowHint(GLFW_DOUBLEBUFFER, 1);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-	WNDCLASSA window_classe;
-	window_classe.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
-	window_classe.lpfnWndProc = DefWindowProcA;
-	window_classe.cbClsExtra = 0;
-	window_classe.cbWndExtra = 0;
-	window_classe.hInstance = GetModuleHandle(0);
-	window_classe.hIcon = LoadIcon(NULL, IDI_WINLOGO);
-	window_classe.hCursor = LoadCursor(0, IDC_ARROW);
-	window_classe.hbrBackground = 0;
-	window_classe.hbrBackground = NULL;
-	window_classe.lpszMenuName = NULL;
-	window_classe.lpszClassName = "Dummy_mindcorpviewer";
+	GLFWwindow* window = glfwCreateWindow(width, height, "BinReaderGUI", NULL, NULL);
+	myassert(window == NULL)
 
-	if (!RegisterClassA(&window_classe)) {
-		printf("Failed to RegisterClassA: %d.\n", GetLastError());
-		scanf("press enter to exit.");
-		return 1;
-	}
+	glfwMakeContextCurrent(window);
+	glfwSwapInterval(0);
 
-	HWND dummy_window = CreateWindowExA(
-		0,
-		window_classe.lpszClassName,
-		"Dummy OpenGL Window",
-		0,
-		CW_USEDEFAULT,
-		CW_USEDEFAULT,
-		CW_USEDEFAULT,
-		CW_USEDEFAULT,
-		0,
-		0,
-		window_classe.hInstance,
-		0);
+	glfwSetWindowPos(window, PosX, PosY);
+	myassert(gladLoadGL() == 0)
 
-	if (!dummy_window) {
-		printf("Failed to CreateWindowExA dummy: %d.\n", GetLastError());
-		scanf("press enter to exit.");
-		return 1;
-	}
-
-	PIXELFORMATDESCRIPTOR pfd;
-	pfd.nSize = sizeof(pfd);
-	pfd.nVersion = 1;
-	pfd.iPixelType = PFD_TYPE_RGBA;
-	pfd.dwFlags = PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER;
-	pfd.cColorBits = 32;
-	pfd.iLayerType = PFD_MAIN_PLANE;
-	pfd.cDepthBits = 24;
-
-	HDC dummy_dc = GetDC(dummy_window);
-	int pixel_formate = ChoosePixelFormat(dummy_dc, &pfd);
-	if (!pixel_formate) {
-		printf("Failed to ChoosePixelFormat: %d.\n", GetLastError());
-		scanf("press enter to exit.");
-		return 1;
-	}
-	if (!SetPixelFormat(dummy_dc, pixel_formate, &pfd)) {
-		printf("Failed to SetPixelFormat: %d.\n", GetLastError());
-		scanf("press enter to exit.");
-		return 1;
-	}
-
-	HGLRC dummy_context = wglCreateContext(dummy_dc);
-	if (!dummy_context) {
-		printf("Failed to wglCreateContext dummy: %d.\n", GetLastError());
-		scanf("press enter to exit.");
-		return 1;
-	}
-
-	if (!wglMakeCurrent(dummy_dc, dummy_context)) {
-		printf("Failed to wglMakeCurrent dummy: %d.\n", GetLastError());
-		scanf("press enter to exit.");
-		return 1;
-	}
-
-	wglCreateContextAttribsARB = (wglCreateContextAttribsARB_type*)wglGetProcAddress(
-		"wglCreateContextAttribsARB");
-	wglChoosePixelFormatARB = (wglChoosePixelFormatARB_type*)wglGetProcAddress(
-		"wglChoosePixelFormatARB");
-
-	int pixel_format_attribs[] = {
-	  WGL_DRAW_TO_WINDOW_ARB,     GL_TRUE,
-	  WGL_SUPPORT_OPENGL_ARB,     GL_TRUE,
-	  WGL_DOUBLE_BUFFER_ARB,      GL_TRUE,
-	  WGL_ACCELERATION_ARB,       WGL_FULL_ACCELERATION_ARB,
-	  WGL_PIXEL_TYPE_ARB,         WGL_TYPE_RGBA_ARB,
-	  WGL_COLOR_BITS_ARB,         32,
-	  WGL_DEPTH_BITS_ARB,         24,
-	  WGL_STENCIL_BITS_ARB,       0,
-	  WGL_SAMPLE_BUFFERS_ARB,     GL_TRUE,
-	  WGL_SAMPLES_ARB,			  4,
-	  0
-	};
-
-	int pixel_format;
-	UINT num_formats;
-	HDC real_dc = GetDC(window);
-	wglChoosePixelFormatARB(real_dc, pixel_format_attribs, 0, 1, &pixel_format, &num_formats);
-	if (!num_formats) {
-		printf("Failed to wglChoosePixelFormatARB: %d.\n", GetLastError());
-		scanf("press enter to exit.");
-		return 1;
-	}
-
-	PIXELFORMATDESCRIPTOR pfde;
-	DescribePixelFormat(real_dc, pixel_format, sizeof(pfde), &pfde);
-	if (!SetPixelFormat(real_dc, pixel_format, &pfde)) {
-		printf("Failed to SetPixelFormat: %d.\n", GetLastError());
-		scanf("press enter to exit.");
-		return 1;
-	}
-
-	int gl33_attribs[] = {
-		WGL_CONTEXT_MAJOR_VERSION_ARB, 3,
-		WGL_CONTEXT_MINOR_VERSION_ARB, 3,
-		WGL_CONTEXT_PROFILE_MASK_ARB,  WGL_CONTEXT_CORE_PROFILE_BIT_ARB,
-		0,
-	};
-
-	HGLRC gl33_context = wglCreateContextAttribsARB(real_dc, 0, gl33_attribs);
-	if (!gl33_context) {
-		printf("Failed to wglCreateContextAttribsARB: %d.\n", GetLastError());
-		scanf("press enter to exit.");
-		return 1;
-	}
-
-	if (!wglMakeCurrent(real_dc, gl33_context)) {
-		printf("Failed to wglMakeCurrent: %d.\n", GetLastError());
-		scanf("press enter to exit.");
-		return 1;
-	}
-
-	if (!gladLoadGLLoader((GLADloadproc)GetAnyGLFuncAddress)) {
-		printf("Failed to gladLoadGLLoader.\n");
-		scanf("press enter to exit.");
-		return 1;
-	}
+	glfwSetScrollCallback(window, scroll_callback);
+	glfwSetMouseButtonCallback(window, mouse_button_callback);
+	glfwSetCursorPosCallback(window, cursor_position_callback);
 
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -649,9 +446,17 @@ int main()
 
 	ImGui::CreateContext();
 	ImGui::GetIO().IniFilename = NULL;
-	ImGui_ImplWin32_Init(window);
+	ImGui_ImplGlfw_InitForOpenGL(window, true);
 	ImGui_ImplOpenGL3_Init("#version 130");
 	ImGui::StyleColorsDark();
+	GImGui->Style.GrabRounding = 4.f;
+	GImGui->Style.FrameRounding = 4.f;
+	GImGui->Style.WindowRounding = 6.f;
+	GImGui->Style.FrameBorderSize = 1.f;
+	GImGui->Style.WindowBorderSize = 1.f;
+	GImGui->Style.IndentSpacing = GImGui->Style.FramePadding.x * 3.0f - 2.0f;
+	ImGui::GetIO().Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\consola.ttf", 13);
+	int WINDOW_FLAGS = ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoBringToFrontOnFocus;
 
 	GLuint idone = loadDDS("glsl/map.dds");
 	glBindTexture(GL_TEXTURE_2D, idone);
@@ -882,26 +687,21 @@ int main()
 	MSG msg{ 0 };
 	char tmp[64];
 	uint32_t sklk = 0;
-	ShowWindow(window, TRUE);
-	UpdateWindow(window);
-	HDC gldc = GetDC(window);
-	while (active)
+	while (!glfwWindowShouldClose(window))
 	{
-		if (PeekMessage(&msg, NULL, 0U, 0U, PM_REMOVE))
-		{
-			TranslateMessage(&msg);
-			DispatchMessage(&msg);
-			continue;
-		}
-
-		if (touch[VK_ESCAPE])
-			active = FALSE;
-
 		Deltatime = float(GetTimeSinceStart() - Lastedtime);
 		Lastedtime = (float)GetTimeSinceStart();
 
-		sprintf_s(tmp, "MindCorpViewer - FPS: %1.0f", 1 / Deltatime);
-		SetWindowText(window, tmp);
+		glfwPollEvents();
+		if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
+			glfwSetWindowShouldClose(window, true);
+
+		glfwGetFramebufferSize(window, &width, &height);
+		glViewport(0, 0, width, height);
+		glClear(GL_COLOR_BUFFER_BIT);
+
+		myassert(sprintf(tmp, "MindCorpViewer - FPS: %1.0f", GImGui->IO.Framerate) < 0);
+		glfwSetWindowTitle(window, tmp);
 
 		glm::mat4 mvp = computeMatricesFromInputs(trans, yaw, pitch);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -916,17 +716,17 @@ int main()
 		}
 
 		ImGui_ImplOpenGL3_NewFrame();
-		ImGui_ImplWin32_NewFrame();
+		ImGui_ImplGlfw_NewFrame();
 		ImGui::NewFrame();
 
 		ImGui::SetNextWindowPos(ImVec2(4, 4), ImGuiCond_Once);
 		ImGui::SetNextWindowSize(ImVec2(0, (float)height / 2.f));
-		ImGui::Begin("Main", 0, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoBringToFrontOnFocus);
+		ImGui::Begin("Main", 0, WINDOW_FLAGS);
 		ImGui::Checkbox("Show Ground", &showground);
 		ImGui::Checkbox("Synchronized Time", &synchronizedtime);
 		for (size_t k = 0; k < pathsize; k++)
 		{
-			if (ImGui::TreeNode(name[k]))
+			if (ImGui::TreeNodeEx(name[k], ImGuiTreeNodeFlags_SpanAvailWidth))
 			{
 				ImGui::PushID(k * 2);
 				ImGui::Checkbox("Wireframe", &wireframe[k]);
@@ -1158,30 +958,28 @@ int main()
 		}
 		ImGui::End();
 		#ifdef _DEBUG
-		ImGui::ShowMetricsWindow();
-		ImGui::Begin("Dear ImGui Style Editor", NULL, ImGuiWindowFlags_AlwaysAutoResize);
-		ImGui::ShowStyleEditor();
-		ImGui::End();
-		ImGui::SetWindowCollapsed("Dear ImGui Style Editor", true, ImGuiCond_Once);
-		ImGui::SetWindowCollapsed("Dear ImGui Metrics/Debugger", true, ImGuiCond_Once);
-		ImGui::SetWindowPos("Dear ImGui Style Editor", ImVec2(width / 1.75f, 73), ImGuiCond_Once);
-		ImGui::SetWindowPos("Dear ImGui Metrics/Debugger", ImVec2(width / 1.75f, 50), ImGuiCond_Once);
+			ImGui::ShowMetricsWindow();
+			ImGui::Begin("Dear ImGui Style Editor", NULL, ImGuiWindowFlags_AlwaysAutoResize);
+			ImGui::ShowStyleEditor();
+			ImGui::End();
+			ImGui::SetWindowCollapsed("Dear ImGui Style Editor", true, ImGuiCond_Once);
+			ImGui::SetWindowCollapsed("Dear ImGui Metrics/Debugger", true, ImGuiCond_Once);
+			ImGui::SetWindowPos("Dear ImGui Style Editor", ImVec2(width / 1.75f, 73), ImGuiCond_Once);
+			ImGui::SetWindowPos("Dear ImGui Metrics/Debugger", ImVec2(width / 1.75f, 50), ImGuiCond_Once);
 		#endif
+		glDisable(GL_MULTISAMPLE);
 		ImGui::Render();
 		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-		SwapBuffers(gldc);
+		glEnable(GL_MULTISAMPLE);
+		glfwSwapBuffers(window);
 	}
 
 	ImGui_ImplOpenGL3_Shutdown();
-	wglDeleteContext(gl33_context);
+	ImGui_ImplGlfw_Shutdown();
 	ImGui::DestroyContext();
-	ImGui_ImplWin32_Shutdown();
 
-	wglMakeCurrent(NULL, NULL);
-	wglDeleteContext(gl33_context);
-	ReleaseDC(window, gldc);
-	DestroyWindow(window);
-	UnregisterClass("WGL_fdjhsklf", window_class.hInstance);
+	glfwDestroyWindow(window);
+	glfwTerminate();
 
-	return (int)msg.wParam;
+	return 0;
 }
