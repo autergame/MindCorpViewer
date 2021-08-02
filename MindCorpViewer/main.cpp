@@ -358,11 +358,11 @@ int main()
 	cJSON* textures = cJSON_GetObjectItem(json, "TEXTURES");
 	size_t pathsize = cJSON_GetArraySize(paths);
 
-	char** name = (char**)calloc(pathsize, 1);
-	char** ddsf = (char**)calloc(pathsize, 1);
-	char** anmf = (char**)calloc(pathsize, 1);
-	char** sknf = (char**)calloc(pathsize, 1);
-	char** sklf = (char**)calloc(pathsize, 1);
+	char** name = (char**)calloc(pathsize, sizeof(char*));
+	char** ddsf = (char**)calloc(pathsize, sizeof(char*));
+	char** anmf = (char**)calloc(pathsize, sizeof(char*));
+	char** sknf = (char**)calloc(pathsize, sizeof(char*));
+	char** sklf = (char**)calloc(pathsize, sizeof(char*));
 
 	cJSON* jobj;
 	size_t oh = 0;
@@ -684,7 +684,6 @@ int main()
 	float yaw = 90.f, pitch = 70.f;
 	float Deltatime = 0, Lastedtime = 0;
 
-	MSG msg{ 0 };
 	char tmp[64];
 	uint32_t sklk = 0;
 	while (!glfwWindowShouldClose(window))

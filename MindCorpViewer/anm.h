@@ -31,7 +31,7 @@ typedef struct FrameIndices
 	uint16_t ScaleIndex;
 } FrameIndices;
 
-glm::quat UncompressQuaternion(const uint16_t& t_DominantAxis, const uint16_t& a_X, const uint16_t& a_Y, const uint16_t& a_Z)
+glm::quat UncompressQuaternion(uint16_t& t_DominantAxis, uint16_t& a_X, uint16_t& a_Y, uint16_t& a_Z)
 {
 	float fx = sqrt(2.0f) * ((int)a_X - 16384) / 32768.0f;
 	float fy = sqrt(2.0f) * ((int)a_Y - 16384) / 32768.0f;
@@ -74,7 +74,7 @@ glm::quat UncompressQuaternion(const uint16_t& t_DominantAxis, const uint16_t& a
 	return uq;
 }
 
-glm::vec3 UncompressVec3(const glm::vec3& a_Min, const glm::vec3& a_Max, const uint16_t& a_X, const uint16_t& a_Y, const uint16_t& a_Z)
+glm::vec3 UncompressVec3(glm::vec3& a_Min, glm::vec3& a_Max, uint16_t& a_X, uint16_t& a_Y, uint16_t& a_Z)
 {
 	glm::vec3 t_Uncompressed;
 
@@ -89,7 +89,7 @@ glm::vec3 UncompressVec3(const glm::vec3& a_Min, const glm::vec3& a_Max, const u
 	return t_Uncompressed;
 }
 
-float UncompressTime(const uint16_t& a_CurrentTime, const float& a_AnimationLength)
+float UncompressTime(uint16_t& a_CurrentTime, float& a_AnimationLength)
 {
 	float t_UncompressedTime;
 

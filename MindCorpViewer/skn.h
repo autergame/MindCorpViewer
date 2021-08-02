@@ -41,7 +41,7 @@ typedef struct Skin
 	std::vector<Mesh> Meshes;
 } Skin;
 
-int openskn(Skin *myskn, const char* filename)
+int openskn(Skin *myskn, char* filename)
 {
 	uint32_t Offset = 0;
 	FILE *fp = fopen(filename, "rb");

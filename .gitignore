@@ -2,7 +2,11 @@
 *.pdb
 *.iobj
 *.ipdb
+*.exp
 Debug/
-MindCorpViewer/Debug/
+x64/Debug/
 MindCorpViewer/DebugWR/
+MindCorpViewer/Debug/
 MindCorpViewer/Release/
+MindCorpViewer/x64/Debug/
+MindCorpViewer/x64/Release/

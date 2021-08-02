@@ -68,7 +68,7 @@ uint32_t StringToHash(char* str, size_t strlen)
 	return hash;
 }
 
-int openskl(Skeleton *myskl, const char* filename)
+int openskl(Skeleton *myskl, char* filename)
 {
 	FILE *fp = fopen(filename, "rb");
 	if (fp == NULL)
