@@ -17,20 +17,6 @@
   THE SOFTWARE.
 */
 
-#ifdef _WIN64
-    typedef unsigned __int64 sizem_t;
-    #define SIZEM_MAX _I64_MAX
-    #define SIZEM_MIN _I64_MIN
-#else
-    typedef unsigned __int32 sizem_t;
-    #define SIZEM_MAX INT_MAX
-    #define SIZEM_MIN INT_MIN
-#endif
-
-#if !defined(_CRT_SECURE_NO_DEPRECATE) && defined(_MSC_VER)
-#define _CRT_SECURE_NO_DEPRECATE
-#endif
-
 #ifdef __GNUC__
 #pragma GCC visibility push(default)
 #endif
@@ -47,6 +33,16 @@
 #include <limits.h>
 #include <ctype.h>
 #include <float.h>
+
+#ifdef _WIN64
+    typedef uint64_t sizem_t;
+    #define SIZEM_MAX _I64_MAX
+    #define SIZEM_MIN _I64_MIN
+#else
+    typedef uint32_t sizem_t;
+    #define SIZEM_MAX INT_MAX
+    #define SIZEM_MIN INT_MIN
+#endif
 
 #if defined(_MSC_VER)
 #pragma warning (pop)
@@ -502,7 +498,7 @@ static bool print_number(const cJSON* const item, printbuffer* const output_buff
     double d = item->valuedouble;
     int length = 0;
     size_t i = 0;
-    unsigned char number_buffer[26] = { 0 };         
+    unsigned char number_buffer[32] = { '\0' };
     double test = 0.0;
 
     if (output_buffer == NULL)
@@ -512,15 +508,15 @@ static bool print_number(const cJSON* const item, printbuffer* const output_buff
 
     if (isnan(d) || isinf(d))
     {
-        length = sprintf((char*)number_buffer, "null");
+        length = sprintf_s((char*)number_buffer, 32, "null");
     }
     else
     {
-        length = sprintf((char*)number_buffer, "%1.15g", d);
+        length = sprintf_s((char*)number_buffer, 32, "%1.15g", d);
 
-        if ((sscanf((char*)number_buffer, "%lg", &test) != 1) || !compare_double((double)test, d))
+        if ((sscanf_s((char*)number_buffer, "%lg", &test) != 1) || !compare_double((double)test, d))
         {
-            length = sprintf((char*)number_buffer, "%1.17g", d);
+            length = sprintf_s((char*)number_buffer, 32, "%1.17g", d);
         }
     }
 

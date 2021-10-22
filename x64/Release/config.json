@@ -1,5 +1,7 @@
 {
+	"vsync": true,
 	"showground": true,
+	"showskybox": true,
 	"synchronizedtime": true,
 	"PATHS": [
 		{

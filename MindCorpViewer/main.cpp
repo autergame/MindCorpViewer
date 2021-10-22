@@ -1,39 +1,38 @@
-//author https://github.com/autergame
-#define _CRT_SECURE_NO_WARNINGS
 #define GLM_FORCE_XYZW_ONLY
+#define _CRT_SECURE_NO_WARNINGS
+
 #pragma comment(lib, "opengl32")
 #pragma comment(lib, "glfw3")
+
 #include <windows.h>
+
 #include <glad/glad.h>
+
 #include <GLFW/glfw3.h>
 #include <GLFW/glfw3native.h>
+
 #include <glm/glm.hpp>
-#include <glm/gtc/type_ptr.hpp>
 #include <glm/gtx/transform.hpp>
-#include <glm/gtx/quaternion.hpp>
-#include <glm/gtx/compatibility.hpp>
+
 #include <imgui/imgui.h>
 #include <imgui/imgui_impl_glfw.h>
 #include <imgui/imgui_impl_opengl3.h>
 #include <imgui/imgui_internal.h>
+
 #include <unordered_map>
-#include <algorithm>
-#include <bitset>
 #include <string>
 #include <vector>
+
 #include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+
+#include "MemReader.h"
+
 #include "skn.h"
 #include "skl.h"
 #include "anm.h"
 #include "cJSON.h"
-
-void _assert(char const* msg, char const* file, unsigned line)
-{
-	fprintf(stderr, "ERROR: %s %s %d\n", msg, file, line);
-	scanf("press enter to exit.");
-	exit(1);
-}
-#define myassert(expression) if (expression) { _assert(#expression, __FILE__, __LINE__); }
 
 float zoom = 700, mousex = 0, mousey = 0;
 int omx = 0, omy = 0, mx = 0, my = 0, state, width, height;
@@ -76,91 +75,173 @@ struct DDS_HEADER
 	uint32_t        reserved2;
 };
 
-GLuint loadDDS(const char* filename)
+uint8_t* loadDDS(const char* filename, uint32_t& format, uint32_t& mipmapCount, uint32_t& width, uint32_t& height)
 {
-	FILE* fp = fopen(filename, "rb");
-	if(fp == NULL)
-		printf("Error opening file: %s %d (%s)\n", filename, errno, strerror(errno));
+	FILE* file;
+	errno_t err = fopen_s(&file, filename, "rb");
+	if (err)
+	{
+		char errMsg[255] = { "\0" };
+		strerror_s(errMsg, 255, errno);
+		printf("ERROR: Cannot read file %s %s\n", filename, errMsg);
+		return 0;
+	}
+
+	printf("Reading file: %s\n", filename);
+	fseek(file, 0, SEEK_END);
+	size_t fsize = (size_t)ftell(file);
+	fseek(file, 0, SEEK_SET);
+	std::string fp(fsize + 1, '\0');
+	myassert(fread(fp.data(), 1, fsize, file) != fsize)
+	fclose(file);
+	printf("Finised reading file\n");
+
+	CharMemVector input;
+	input.MemWrite(fp.data(), fsize);
 
 	uint32_t DDS = MAKEFOURCC('D', 'D', 'S', ' ');
 	uint32_t DXT3 = MAKEFOURCC('D', 'X', 'T', '3');
 	uint32_t DXT5 = MAKEFOURCC('D', 'X', 'T', '5');
 
-	uint32_t Signature;
-	fread(&Signature, sizeof(uint32_t), 1, fp);
+	uint32_t Signature = input.MemRead<uint32_t>();
 	if (Signature != DDS)
 	{
 		printf("dds has no valid signature\n");
-		scanf("press enter to exit.");
+		scanf_s("press enter to exit.");
 		return 0;
 	}
 
 	DDS_HEADER Header;
-	fread(&Header, sizeof(DDS_HEADER), 1, fp);
+	input.MemRead(&Header, sizeof(DDS_HEADER));
 
-	uint32_t Format = 0x83F1;
+	format = 0x83F1;
 	if (Header.ddspf.fourCC == DXT3)
 	{
-		Format = 0x83F2;
+		format = 0x83F2;
 	}
 	else if (Header.ddspf.fourCC == DXT5)
 	{
-		Format = 0x83F3;
+		format = 0x83F3;
 	}
+
+	height = Header.height;
+	width = Header.width;
+	mipmapCount = Header.mipMapCount;
+
+	uint32_t imageSize = fsize - 128;
+	uint8_t* buffer = (uint8_t*)calloc(1, imageSize);
+	input.MemRead(buffer, imageSize);
+
+	return buffer;
+}
+
+GLuint loadDDSToOpengl(const char* filename)
+{
+	uint32_t format, width, height, mipMapCount;
+	uint8_t* buffer = loadDDS(filename, format, mipMapCount, width, height);
 
 	uint32_t mID;
 	glGenTextures(1, &mID);
 	glBindTexture(GL_TEXTURE_2D, mID);
 	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_BASE_LEVEL, 0);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, std::max(1u, mipMapCount - 1));
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-	uint32_t BlockSize = (Format == 0x83F1) ? 8 : 16;
-	uint32_t Height = Header.height;
-	uint32_t Width = Header.width;
-	for (uint32_t i = 0; i < std::max(1u, Header.mipMapCount); i++)
+	uint32_t offset = 0;
+	uint32_t blockSize = (format == 0x83F1) ? 8 : 16;
+	for (uint32_t i = 0; i < std::max(1u, mipMapCount); i++)
 	{
-		uint32_t Size = std::max(1u, ((Width + 3) / 4) * ((Height + 3) / 4)) * BlockSize;
-		uint8_t* Buffer = (uint8_t*)calloc(Size, sizeof(uint8_t));
-		fread(Buffer, sizeof(uint8_t), Size, fp);
+		uint32_t size = std::max(1u, ((width + 3) / 4) * ((height + 3) / 4)) * blockSize;
 
-		glCompressedTexImage2D(GL_TEXTURE_2D, i, Format, Width, Height, 0, Size, Buffer);
+		glCompressedTexImage2D(GL_TEXTURE_2D, i, format, width, height, 0, size, buffer + offset);
 
-		Width /= 2;
-		Height /= 2;
+		offset += size;
+		width /= 2;
+		height /= 2;
 	}
 
-	fclose(fp);
+	if (std::max(1u, mipMapCount) == 1)
+		glGenerateMipmap(GL_TEXTURE_2D);
+
+	free(buffer);
 	return mID;
+}
+
+GLuint loadCubemap(const char* faces[6])
+{
+	GLuint cubemap;
+	glGenTextures(1, &cubemap);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, cubemap);
+	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+	glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+
+	for (GLuint i = 0; i < 6; i++)
+	{
+		uint32_t format, width, height, mipMapCount;
+		uint8_t* image = loadDDS(faces[i], format, mipMapCount, width, height);
+
+		uint32_t offset = 0;
+		uint32_t blockSize = (format == 0x83F1) ? 8 : 16;
+		for (uint32_t level = 0; level < std::max(1u, mipMapCount); level++)
+		{
+			uint32_t size = std::max(1u, ((width + 3) / 4) * ((height + 3) / 4)) * blockSize;
+
+			glCompressedTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + i, level, format, width, height, 0, size, image + offset);
+
+			offset += size;
+			width /= 2;
+			height /= 2;
+		}
+
+		free(image);
+	}
+
+	return cubemap;
 }
 
 GLuint loadShader(GLenum type, const char* filename)
 {
-	FILE* fp = fopen(filename, "rb");
-	if (fp == NULL)
-		printf("Error opening file: %s %d (%s)\n", filename, errno, strerror(errno));
-	fseek(fp, 0, SEEK_END);
-	long fsize = ftell(fp);
-	fseek(fp, 0, SEEK_SET);
-	char* string = new char[fsize + 1];
-	fread(string, fsize, 1, fp);
-	string[fsize] = 0;
-	fclose(fp);
+	FILE* file;
+	errno_t err = fopen_s(&file, filename, "rb");
+	if (err)
+	{
+		char errMsg[255] = { "\0" };
+		strerror_s(errMsg, 255, errno);
+		printf("ERROR: Cannot read file %s %s\n", filename, errMsg);
+		return 0;
+	}
+
+	printf("Reading file: %s\n", filename);
+	fseek(file, 0, SEEK_END);
+	size_t fsize = (size_t)ftell(file);
+	fseek(file, 0, SEEK_SET);
+	std::string fp(fsize + 1, '\0');
+	myassert(fread(fp.data(), 1, fsize, file) != fsize)
+	fclose(file);
+	printf("Finised reading file\n");
+
+	const char* c_str = fp.c_str();
 
 	GLint success;
 	GLuint shader = glCreateShader(type);
-	glShaderSource(shader, 1, &string, NULL);
+	glShaderSource(shader, 1, &c_str, nullptr);
 	glCompileShader(shader);
 	glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
 	if (!success)
 	{
 		char infoLog[512];
-		glGetShaderInfoLog(shader, 512, NULL, infoLog);
+		glGetShaderInfoLog(shader, 512, nullptr, infoLog);
 		printf("shader(%s) failed: Cannot compile shader\n", filename);
 		printf("%s", infoLog);
-		scanf("press enter to exit.");
+		scanf_s("press enter to exit.");
 	}
 	return shader;
 }
@@ -180,10 +261,10 @@ GLuint useshader(const char* vertexfile, const char* fragmentfile)
 	if (!success)
 	{
 		char infoLog[512];
-		glGetProgramInfoLog(shaderid, 512, NULL, infoLog);
+		glGetProgramInfoLog(shaderid, 512, nullptr, infoLog);
 		printf("shader() failed: Cannot link shader\n");
 		printf("%s", infoLog);
-		scanf("press enter to exit.");
+		scanf_s("press enter to exit.");
 	}
 	glUseProgram(0);
 	glDeleteShader(vertexshader);
@@ -194,16 +275,16 @@ GLuint useshader(const char* vertexfile, const char* fragmentfile)
 std::vector<std::string> ListDirectoryContents(const char* sDir, const char* ext)
 {
 	WIN32_FIND_DATA fdFile;
-	HANDLE hFind = NULL;
+	HANDLE hFind = nullptr;
 
 	char sPath[2048];
 	std::vector<std::string> paths;
 
-	sprintf(sPath, "%s\\*.%s", sDir, ext);
+	sprintf_s(sPath, 2048, "%s\\*.%s", sDir, ext);
 	if ((hFind = FindFirstFile(sPath, &fdFile)) == INVALID_HANDLE_VALUE)
 	{
 		printf("Path not found: [%s]\n", sPath);
-		scanf("press enter to exit.");
+		scanf_s("press enter to exit.");
 		return paths;
 	}
 
@@ -213,7 +294,7 @@ std::vector<std::string> ListDirectoryContents(const char* sDir, const char* ext
 		{
 			if (!(fdFile.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY))
 			{
-				sprintf(sPath, "%s\\%s", sDir, fdFile.cFileName);
+				sprintf_s(sPath, 2048, "%s\\%s", sDir, fdFile.cFileName);
 				paths.emplace_back(sPath);
 			}
 		}
@@ -262,6 +343,7 @@ glm::mat4 computeMatricesFromInputs(glm::vec3& trans, float& yaw, float& pitch)
 		cos(glm::radians(pitch)),
 		sin(glm::radians(pitch)) * sin(glm::radians(yaw))
 	);
+	position = glm::normalize(position);
 
 	glm::vec3 right = glm::normalize(glm::cross(position, glm::vec3(0.f, 1.f, 0.f)));
 	glm::vec3 up = glm::normalize(glm::cross(right, position));
@@ -284,9 +366,10 @@ glm::mat4 computeMatricesFromInputs(glm::vec3& trans, float& yaw, float& pitch)
 	lastx = mousex;
 	lasty = mousey;
 
-	glm::mat4 viewmatrix = glm::lookAt(position * zoom, glm::vec3(0.f, 0.f, 0.f), up);
+	glm::mat4 viewmatrix = glm::lookAt(position * zoom, glm::vec3(0.f), up);
 	viewmatrix = viewmatrix * glm::translate(trans) * glm::scale(glm::vec3(-1.f, 1.f, 1.f));
-	return glm::perspective(glm::radians(45.f), (float)width / (float)height, 0.1f, 10000.0f) * viewmatrix;
+
+	return viewmatrix;
 }
 
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset)
@@ -333,8 +416,31 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
 void glfw_error_callback(int error, const char* description)
 {
 	fprintf(stderr, "Glfw Error %d: %s\n", error, description);
-	scanf("press enter to exit.");
+	scanf_s("press enter to exit.");
 	exit(1);
+}
+
+std::string ReadConfig()
+{
+	FILE* file;
+	errno_t err = fopen_s(&file, "config.json", "rb");
+	if (err)
+	{
+		char errMsg[255] = { "\0" };
+		strerror_s(errMsg, 255, errno);
+		printf("ERROR: Cannot read file config.json %s\n", errMsg);
+		return std::string();
+	}
+
+	printf("Reading file: config.json\n");
+	fseek(file, 0, SEEK_END);
+	size_t fsize = (size_t)ftell(file);
+	fseek(file, 0, SEEK_SET);
+	std::string fp(fsize + 1, '\0');
+	myassert(fread(fp.data(), 1, fsize, file) != fsize)
+	fclose(file);
+	printf("Finised reading file\n");
+	return fp;
 }
 
 int main()
@@ -342,17 +448,9 @@ int main()
 	QueryPerformanceFrequency(&Frequencye);
 	QueryPerformanceCounter(&Starte);
 
-	FILE* file = fopen("config.json", "rb");
-	if (file == NULL)
-		printf("Error opening file: config.json %d (%s)\n", errno, strerror(errno));
-	fseek(file, 0, SEEK_END);
-	long fsize = ftell(file);
-	fseek(file, 0, SEEK_SET);
-	char* string = (char*)malloc(fsize + 1);
-	fread(string, fsize, 1, file);
-	fclose(file);
+	std::string configStr = ReadConfig();
 
-	cJSON* json = cJSON_ParseWithLength(string, fsize);
+	cJSON* json = cJSON_ParseWithLength(configStr.data(), configStr.size());
 	cJSON* paths = cJSON_GetObjectItem(json, "PATHS");
 	cJSON* config = cJSON_GetObjectItem(json, "CONFIG");
 	cJSON* textures = cJSON_GetObjectItem(json, "TEXTURES");
@@ -366,7 +464,7 @@ int main()
 
 	cJSON* jobj;
 	size_t oh = 0;
-	for (oh = 0, jobj = paths->child; jobj != NULL; jobj = jobj->next, oh++)
+	for (oh = 0, jobj = paths->child; jobj != nullptr; jobj = jobj->next, oh++)
 	{
 		name[oh] = cJSON_GetObjectItem(jobj, "name")->valuestring;
 		ddsf[oh] = cJSON_GetObjectItem(jobj, "dds")->valuestring;
@@ -377,7 +475,7 @@ int main()
 
 	std::pair<int, bool> paird;
 	std::unordered_map<std::string, std::pair<size_t, bool>> nowshowddsv;
-	for (jobj = textures->child; jobj != NULL; jobj = jobj->next)
+	for (jobj = textures->child; jobj != nullptr; jobj = jobj->next)
 	{
 		paird = {
 			cJSON_GetObjectItem(jobj, "texture")->valueint,
@@ -394,9 +492,11 @@ int main()
 	bool* gotostart = (bool*)calloc(pathsize, 1);
 	bool* wireframe = (bool*)calloc(pathsize, 1);
 	bool* showskeleton = (bool*)calloc(pathsize, 1);
+	bool vsync = cJSON_GetObjectItem(json, "vsync")->valueint;
 	bool showground = cJSON_GetObjectItem(json, "showground")->valueint;
+	bool showskybox = cJSON_GetObjectItem(json, "showskybox")->valueint;
 	bool synchronizedtime = cJSON_GetObjectItem(json, "synchronizedtime")->valueint;
-	for (oe = 0, jobj = config->child; jobj != NULL; jobj = jobj->next, oe++)
+	for (oe = 0, jobj = config->child; jobj != nullptr; jobj = jobj->next, oe++)
 	{
 		setupanm[oe] = cJSON_GetObjectItem(jobj, "setupanm")->valueint;
 		nowanm[oe] = cJSON_GetObjectItem(jobj, "anmlist")->valueint;
@@ -423,8 +523,8 @@ int main()
 	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-	GLFWwindow* window = glfwCreateWindow(width, height, "BinReaderGUI", NULL, NULL);
-	myassert(window == NULL)
+	GLFWwindow* window = glfwCreateWindow(width, height, "BinReaderGUI", nullptr, nullptr);
+	myassert(window == nullptr)
 
 	glfwMakeContextCurrent(window);
 	glfwSwapInterval(0);
@@ -436,6 +536,8 @@ int main()
 	glfwSetMouseButtonCallback(window, mouse_button_callback);
 	glfwSetCursorPosCallback(window, cursor_position_callback);
 
+	glfwSwapInterval(vsync);
+
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glEnable(GL_MULTISAMPLE);
@@ -445,7 +547,7 @@ int main()
 	glEnable(GL_SAMPLE_ALPHA_TO_COVERAGE);
 
 	ImGui::CreateContext();
-	ImGui::GetIO().IniFilename = NULL;
+	ImGui::GetIO().IniFilename = nullptr;
 	ImGui_ImplGlfw_InitForOpenGL(window, true);
 	ImGui_ImplOpenGL3_Init("#version 130");
 	ImGui::StyleColorsDark();
@@ -458,32 +560,50 @@ int main()
 	ImGui::GetIO().Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\consola.ttf", 13);
 	int WINDOW_FLAGS = ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoBringToFrontOnFocus;
 
-	GLuint idone = loadDDS("glsl/map.dds");
+	GLuint idone = loadDDSToOpengl("glsl/map.dds");
 	glBindTexture(GL_TEXTURE_2D, idone);
 	glActiveTexture(GL_TEXTURE0 + idone);
+
+	const char* cubeFaces[] = {
+		"glsl/cube/right.dds",
+		"glsl/cube/left.dds",
+		"glsl/cube/top.dds",
+		"glsl/cube/bottom.dds",
+		"glsl/cube/front.dds",
+		"glsl/cube/back.dds"
+	};
+
+	GLuint idtwo = loadCubemap(cubeFaces);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, idtwo);
+	glActiveTexture(GL_TEXTURE0 + idtwo);
 
 	GLuint shaderidmap = useshader("glsl/map.vert", "glsl/model.frag");
 	GLuint shaderidline = useshader("glsl/line.vert", "glsl/line.frag");
 	GLuint shaderidmodel = useshader("glsl/model.vert", "glsl/model.frag");
+	GLuint shaderidcube = useshader("glsl/skybox.vert", "glsl/skybox.frag");
 
 	glUseProgram(shaderidmap);
-	GLuint mvprefe = glGetUniformLocation(shaderidmap, "MVP");
+	GLuint mvprefmap = glGetUniformLocation(shaderidmap, "MVP");
 	glUniform1i(glGetUniformLocation(shaderidmap, "Diffuse"), idone - 1);
 
 	glUseProgram(shaderidline);
-	GLuint mvprefel = glGetUniformLocation(shaderidline, "MVP");
-	GLuint colorrefe = glGetUniformLocation(shaderidline, "Color");
+	GLuint mvprefline = glGetUniformLocation(shaderidline, "MVP");
+	GLuint colorrefline = glGetUniformLocation(shaderidline, "Color");
 
 	glUseProgram(shaderidmodel);
-	GLuint mvprefet = glGetUniformLocation(shaderidmodel, "MVP");
-	GLuint bonerefet = glGetUniformLocation(shaderidmodel, "Bones");
-	GLuint texrefet = glGetUniformLocation(shaderidmodel, "Diffuse");
+	GLuint mvprefmodel = glGetUniformLocation(shaderidmodel, "MVP");
+	GLuint bonerefmodel = glGetUniformLocation(shaderidmodel, "Bones");
+	GLuint texrefmodel = glGetUniformLocation(shaderidmodel, "Diffuse");
+
+	glUseProgram(shaderidcube);
+	GLuint mvprefcube = glGetUniformLocation(shaderidcube, "MVP");
+	glUniform1i(glGetUniformLocation(shaderidcube, "Skybox"), idtwo - 1);
 
 	float planebufvertex[] = {
-		 500.f, 0.f, 500.f, 0.f,1.f,
-		 500.f, 0.f,-500.f, 0.f,0.f,
-		-500.f, 0.f,-500.f, 1.f,0.f,
-		-500.f, 0.f, 500.f, 1.f,1.f
+		 750.f, 0.f, 750.f, 0.f,1.f,
+		 750.f, 0.f,-750.f, 0.f,0.f,
+		-750.f, 0.f,-750.f, 1.f,0.f,
+		-750.f, 0.f, 750.f, 1.f,1.f
 	};
 
 	uint32_t planebufindex[] = {
@@ -509,6 +629,53 @@ int main()
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
 	glEnableVertexAttribArray(1);
 	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+
+	glBindVertexArray(0);
+
+	float skyboxbufvertex[] =
+	{
+		-1.0f, -1.0f,  1.0f,
+		 1.0f, -1.0f,  1.0f,
+		 1.0f, -1.0f, -1.0f,
+		-1.0f, -1.0f, -1.0f,
+		-1.0f,  1.0f,  1.0f,
+		 1.0f,  1.0f,  1.0f,
+		 1.0f,  1.0f, -1.0f,
+		-1.0f,  1.0f, -1.0f
+	};
+
+	uint32_t skyboxbufindex[] =
+	{
+		1, 2, 6,
+		6, 5, 1,
+		0, 4, 7,
+		7, 3, 0,
+		4, 5, 6,
+		6, 7, 4,
+		0, 3, 2,
+		2, 1, 0,
+		0, 1, 5,
+		5, 4, 0,
+		3, 7, 6,
+		6, 2, 3
+	};
+
+	uint32_t vertexarrayskyboxBuffer;
+	glGenVertexArrays(1, &vertexarrayskyboxBuffer);
+	glBindVertexArray(vertexarrayskyboxBuffer);
+
+	uint32_t vertexskyboxBuffer;
+	glGenBuffers(1, &vertexskyboxBuffer);
+	glBindBuffer(GL_ARRAY_BUFFER, vertexskyboxBuffer);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(skyboxbufvertex), skyboxbufvertex, GL_STATIC_DRAW);
+
+	uint32_t indexskyboxBuffer;
+	glGenBuffers(1, &indexskyboxBuffer);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexskyboxBuffer);
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(skyboxbufindex), skyboxbufindex, GL_STATIC_DRAW);
+
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
 
 	glBindVertexArray(0);
 
@@ -563,7 +730,7 @@ int main()
 		pathsdds[k] = ListDirectoryContents(ddsf[k], "dds");
 		for (size_t i = 0; i < pathsdds[k].size(); i++)
 		{
-			mydds[k].emplace_back(loadDDS(pathsdds[k][i].c_str()));
+			mydds[k].emplace_back(loadDDSToOpengl(pathsdds[k][i].c_str()));
 			glBindTexture(GL_TEXTURE_2D, mydds[k][i]);
 			glActiveTexture(GL_TEXTURE0 + mydds[k][i]);
 			mydds[k][i] = mydds[k][i] - 1;
@@ -671,11 +838,13 @@ int main()
 			char* path = (char*)pathsdds[k][i].c_str();
 			char* pfile = path + strlen(path);
 			for (; pfile > path; pfile--)
+			{
 				if ((*pfile == '\\') || (*pfile == '/'))
 				{
 					pfile++;
 					break;
 				}
+			}
 			pathsdds[k][i] = pfile;
 		}
 	}
@@ -684,8 +853,7 @@ int main()
 	float yaw = 90.f, pitch = 70.f;
 	float Deltatime = 0, Lastedtime = 0;
 
-	char tmp[64];
-	uint32_t sklk = 0;
+	char windowTitle[64] = { '\0' };
 	while (!glfwWindowShouldClose(window))
 	{
 		Deltatime = float(GetTimeSinceStart() - Lastedtime);
@@ -697,19 +865,21 @@ int main()
 
 		glfwGetFramebufferSize(window, &width, &height);
 		glViewport(0, 0, width, height);
-		glClear(GL_COLOR_BUFFER_BIT);
-
-		myassert(sprintf(tmp, "MindCorpViewer - FPS: %1.0f", GImGui->IO.Framerate) < 0);
-		glfwSetWindowTitle(window, tmp);
-
-		glm::mat4 mvp = computeMatricesFromInputs(trans, yaw, pitch);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+		myassert(sprintf_s(windowTitle, 64,
+			"MindCorpViewer - Fps: %1.0f / Ms: %1.3f", GImGui->IO.Framerate, 1000.0f / GImGui->IO.Framerate) <= 0)
+			glfwSetWindowTitle(window, windowTitle);
+
+		glm::mat4 viewmatrix = computeMatricesFromInputs(trans, yaw, pitch);
+		glm::mat4 projectionmatrix = glm::perspective(glm::radians(45.f), (float)width / (float)height, 0.1f, 10000.0f);
+		glm::mat4 projviewmatrix = projectionmatrix * viewmatrix;
 
 		if (showground)
 		{
 			glUseProgram(shaderidmap);
 			glBindVertexArray(vertexarrayplaneBuffer);
-			glUniformMatrix4fv(mvprefe, 1, GL_FALSE, (float*)&mvp);
+			glUniformMatrix4fv(mvprefmap, 1, GL_FALSE, (float*)&projviewmatrix);
 			glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
 			glBindVertexArray(0);
 		}
@@ -721,7 +891,10 @@ int main()
 		ImGui::SetNextWindowPos(ImVec2(4, 4), ImGuiCond_Once);
 		ImGui::SetNextWindowSize(ImVec2(0, (float)height / 2.f));
 		ImGui::Begin("Main", 0, WINDOW_FLAGS);
+		if (ImGui::Checkbox("Enable Vsync", &vsync))
+			glfwSwapInterval(vsync);
 		ImGui::Checkbox("Show Ground", &showground);
+		ImGui::Checkbox("Show Sky Box", &showskybox);
 		ImGui::Checkbox("Synchronized Time", &synchronizedtime);
 		for (size_t k = 0; k < pathsize; k++)
 		{
@@ -759,6 +932,7 @@ int main()
 			bool dur = Time[k] > myanm[k][nowanm[k]].Duration;
 			if (playanm[k] && !dur)
 				Time[k] += Deltatime * speedanm[k];
+
 			if (dur)
 			{
 				if (gotostart[k])
@@ -773,25 +947,24 @@ int main()
 				for (size_t i = 0; i < pathsize; i++)
 					Time[i] = Time[0];
 
-			if (setupanm[k])
+			if (setupanm[k]) {
 				SetupAnimation(&BoneTransforms[k], Time[k], &myanm[k][nowanm[k]], &myskl[k]);
-			else
-			{
+			} else {
 				for (size_t i = 0; i < BoneTransforms[k].size(); i++)
 					BoneTransforms[k][i] = glm::identity<glm::mat4>();
 			}
 
 			glUseProgram(shaderidmodel);
 			glBindVertexArray(vertexarrayBuffer[k]);
-			glUniformMatrix4fv(mvprefet, 1, GL_FALSE, (float*)&mvp);
-			glUniformMatrix4fv(bonerefet, BoneTransforms[k].size(), GL_FALSE, (float*)&BoneTransforms[k][0]);
+			glUniformMatrix4fv(mvprefmodel, 1, GL_FALSE, (float*)&projviewmatrix);
+			glUniformMatrix4fv(bonerefmodel, BoneTransforms[k].size(), GL_FALSE, (float*)&BoneTransforms[k][0]);
 			if (wireframe[k])
 				glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
 			for (size_t i = 0; i < myskn[k].Meshes.size(); i++)
 			{
 				if (showmesh[k][i])
 				{
-					glUniform1i(texrefet, myskn[k].Meshes[i].texid);
+					glUniform1i(texrefmodel, myskn[k].Meshes[i].texid);
 					glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexBuffer[k][i]);
 					glDrawElements(GL_TRIANGLES, myskn[k].Meshes[i].IndexCount, GL_UNSIGNED_SHORT, 0);
 				}
@@ -801,7 +974,7 @@ int main()
 
 			if (showskeleton[k])
 			{
-				sklk = 0;
+				uint32_t sklk = 0;
 				for (size_t i = 0; i < myskl[k].Bones.size(); i++)
 				{
 					int16_t parentid = myskl[k].Bones[i].ParentID;
@@ -817,8 +990,8 @@ int main()
 
 				glDisable(GL_DEPTH_TEST);
 				glUseProgram(shaderidline);
-				glUniform1i(colorrefe, 0);
-				glUniformMatrix4fv(mvprefel, 1, GL_FALSE, (float*)&mvp);
+				glUniform1i(colorrefline, 0);
+				glUniformMatrix4fv(mvprefline, 1, GL_FALSE, (float*)&projviewmatrix);
 				glBindVertexArray(vertexarraylineBuffer[k]);
 				glBindBuffer(GL_ARRAY_BUFFER, vertexlineBuffer[k]);
 				glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(glm::vec4) * lines[k].size(), lines[k].data());
@@ -826,7 +999,7 @@ int main()
 				glBindVertexArray(0);
 
 				glPointSize(3.f);
-				glUniform1i(colorrefe, 1);
+				glUniform1i(colorrefline, 1);
 				glBindVertexArray(vertexarrayjointBuffer[k]);
 				glBindBuffer(GL_ARRAY_BUFFER, vertexjointBuffer[k]);
 				glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(glm::vec4) * joints[k].size(), joints[k].data());
@@ -838,7 +1011,9 @@ int main()
 		if (ImGui::Button("Save Configuration"))
 		{
 			cJSON* jsons = cJSON_CreateObject();
+			cJSON_AddItemToObject(jsons, "vsync", cJSON_CreateBool(vsync));
 			cJSON_AddItemToObject(jsons, "showground", cJSON_CreateBool(showground));
+			cJSON_AddItemToObject(jsons, "showskybox", cJSON_CreateBool(showskybox));
 			cJSON_AddItemToObject(jsons, "synchronizedtime", cJSON_CreateBool(synchronizedtime));
 
 			cJSON* pathss = cJSON_CreateArray();
@@ -882,9 +1057,15 @@ int main()
 				}
 			}
 
-			file = fopen("config.json", "wb");
-			if (file == NULL)
-				printf("Error opening file: config.json %d (%s)\n", errno, strerror(errno));
+			FILE* file;
+			errno_t err = fopen_s(&file, "config.json", "wb");
+			if (err)
+			{
+				char errMsg[255] = { '\0' };
+				strerror_s(errMsg, 255, err);
+				printf("ERROR: Cannot write file config.json %s\n", errMsg);
+				return 0;
+			}
 			fprintf(file, "%s", cJSON_Print(jsons));
 			fclose(file);
 		}
@@ -892,13 +1073,21 @@ int main()
 		{
 			for (size_t k = 0; k < pathsize; k++)
 			{
-				int indexp = 1, size = 0;
-				char* nameobj = (char*)calloc(strlen(name[k]) + 13, 1);
-				sprintf(nameobj, "export/%s.obj", name[k]);
-				FILE* fout = fopen(nameobj, "w");
-				if (fout == NULL)
-					printf("Error opening file: %s %d (%s)\n", nameobj, errno, strerror(errno));
+				int indexp = 1, size = 0, strsize = strlen(name[k]) + 16;
+				char* nameobj = (char*)calloc(strsize, 1);
+				sprintf_s(nameobj, strsize, "export/%s.obj", name[k]);
+
+				FILE* fout;
+				errno_t err = fopen_s(&fout, nameobj, "wb");
+				if (err)
+				{
+					char errMsg[255] = { '\0' };
+					strerror_s(errMsg, 255, err);
+					printf("ERROR: Cannot write file %s %s\n", nameobj, errMsg);
+					return 0;
+				}
 				fprintf(fout, "mtllib %s.mtl\n", name[k]);
+
 				for (size_t i = 0; i < myskn[k].Meshes.size(); i++)
 				{
 					if (showmesh[k][i])
@@ -942,23 +1131,39 @@ int main()
 					}
 				}		
 				fclose(fout);
-				nameobj = (char*)calloc(strlen(name[k]) + 13, 1);
-				sprintf(nameobj, "export/%s.mtl", name[k]);
-				fout = fopen(nameobj, "w");
-				if (fout == NULL)
-					printf("Error opening file: %s %d (%s)\n", nameobj, errno, strerror(errno));
-				for (size_t i = 0; i < pathsdds[k].size(); i++)
+				nameobj = (char*)calloc(strsize, 1);
+				sprintf_s(nameobj, strsize, "export/%s.mtl", name[k]);
+
+				err = fopen_s(&fout, nameobj, "wb");
+				if (err)
 				{
-					fprintf(fout, "newmtl %s%d\n", name[k], i);
-					fprintf(fout, "map_Kd %s\n\n", pathsdds[k][i].c_str());
+					char errMsg[255] = { '\0' };
+					strerror_s(errMsg, 255, err);
+					printf("ERROR: Cannot write file %s %s\n", nameobj, errMsg);
+					return 0;
+				}
+
+				std::vector<int> dupli;
+				for (size_t i = 0; i < myskn[k].Meshes.size(); i++)
+				{
+					if (showmesh[k][i])
+					{ 
+						if (std::find(dupli.begin(), dupli.end(), nowdds[k][i]) == dupli.end())
+						{
+							fprintf(fout, "newmtl %s%d\n", name[k], nowdds[k][i]);
+							fprintf(fout, "map_Kd %s\n\n", pathsdds[k][nowdds[k][i]].c_str());
+							dupli.emplace_back(nowdds[k][i]);
+						}
+					}
 				}
 				fclose(fout);
 			}
 		}
 		ImGui::End();
+
 		#ifdef _DEBUG
 			ImGui::ShowMetricsWindow();
-			ImGui::Begin("Dear ImGui Style Editor", NULL, ImGuiWindowFlags_AlwaysAutoResize);
+			ImGui::Begin("Dear ImGui Style Editor", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
 			ImGui::ShowStyleEditor();
 			ImGui::End();
 			ImGui::SetWindowCollapsed("Dear ImGui Style Editor", true, ImGuiCond_Once);
@@ -966,10 +1171,26 @@ int main()
 			ImGui::SetWindowPos("Dear ImGui Style Editor", ImVec2(width / 1.75f, 73), ImGuiCond_Once);
 			ImGui::SetWindowPos("Dear ImGui Metrics/Debugger", ImVec2(width / 1.75f, 50), ImGuiCond_Once);
 		#endif
+
+		if (showskybox)
+		{
+			viewmatrix = glm::mat4(glm::mat3(viewmatrix));
+			projviewmatrix = projectionmatrix * viewmatrix;
+
+			glDepthFunc(GL_LEQUAL);
+			glUseProgram(shaderidcube);
+			glBindVertexArray(vertexarrayskyboxBuffer);
+			glUniformMatrix4fv(mvprefcube, 1, GL_FALSE, (float*)&projviewmatrix);
+			glDrawElements(GL_TRIANGLES, 36, GL_UNSIGNED_INT, 0);
+			glBindVertexArray(0);
+			glDepthFunc(GL_LESS);
+		}
+
 		glDisable(GL_MULTISAMPLE);
 		ImGui::Render();
 		ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 		glEnable(GL_MULTISAMPLE);
+
 		glfwSwapBuffers(window);
 	}
 
