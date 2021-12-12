@@ -376,7 +376,9 @@ int openanm(Animation *myanm, const char* filename)
 				uint32_t BoneHash = input.MemRead<uint32_t>();
 
 				FrameIndices FrameIndexData;
-				input.MemRead(&FrameIndexData, 6);
+				input.MemRead(&FrameIndexData.TranslationIndex, 2);
+				input.MemRead(&FrameIndexData.ScaleIndex, 2);
+				input.MemRead(&FrameIndexData.RotationIndex, 2);
 
 				input.m_Pointer += 2;
 
