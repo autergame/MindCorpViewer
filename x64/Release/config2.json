@@ -1,0 +1,171 @@
+{
+	"vsync": true,
+	"showground": true,
+	"showskybox": true,
+	"synchronizedtime": true,
+	"PATHS": [
+		{
+			"name": "rakan",
+			"dds": "rakan",
+			"anm": "rakan\\animations",
+			"skn": "rakan\\rakan_skin05.skn",
+			"skl": "rakan\\rakan_skin05.skl"
+		}, 
+		{
+			"name": "xayah",
+			"dds": "xayah",
+			"anm": "xayah\\animations",
+			"skn": "xayah\\xayah_skin04.skn",
+			"skl": "xayah\\xayah_skin04.skl"
+		},
+		{
+			"name": "silco",
+			"dds": "silco",
+			"anm": "silco\\animations",
+			"skn": "silco\\tft6_silco.tft_set6_stage2.skn",
+			"skl": "silco\\tft6_silco.tft_set6_stage2.skl"
+		}
+	],
+	"CONFIG": [
+		{
+			"setupanm": true,
+			"anmlist": 14,
+			"playanm": false,
+			"jumpnext": false,
+			"gotostart": true,
+			"wireframe": false,
+			"showskeleton": false
+		}, 
+		{
+			"setupanm": true,
+			"anmlist": 36,
+			"playanm": false,
+			"jumpnext": false,
+			"gotostart": true,
+			"wireframe": false,
+			"showskeleton": false
+		}
+	],
+	"TEXTURES": [
+		{
+			"name": "Skin05_Body_MAT",
+			"texture": 4,
+			"show": true
+		}, 
+		{
+			"name": "Skin05_Tail_MAT",
+			"texture": 4,
+			"show": true
+		}, 
+		{
+			"name": "Skin05_Cape_MAT",
+			"texture": 4,
+			"show": true
+		}, 
+		{
+			"name": "Skin05_Fur_MAT",
+			"texture": 4,
+			"show": true
+		}, 
+		{
+			"name": "Skin05_Mirror_MAT",
+			"texture": 6,
+			"show": true
+		}, 
+		{
+			"name": "Skin05_Wing_MAT",
+			"texture": 0,
+			"show": true
+		}, 
+		{
+			"name": "Skin05_Familiar_MAT",
+			"texture": 2,
+			"show": false
+		}, 
+		{
+			"name": "Skin05_Crest_MAT",
+			"texture": 5,
+			"show": false
+		}, 
+		{
+			"name": "Skin05_Snack_MAT",
+			"texture": 0,
+			"show": false
+		}, 
+		{
+			"name": "Skin05_Ult_Cape_MAT",
+			"texture": 0,
+			"show": false
+		}, 
+		{
+			"name": "Skin05_Ult_WingsA_MAT",
+			"texture": 0,
+			"show": false
+		}, 
+		{
+			"name": "Skin05_Ult_WingsB_MAT",
+			"texture": 0,
+			"show": false
+		}, 
+		{
+			"name": "Skin05_Ult_Tail_MAT",
+			"texture": 0,
+			"show": false
+		}, 
+		{
+			"name": "Skin05_Ult_Addition_MAT",
+			"texture": 0,
+			"show": false
+		}, 
+		{
+			"name": "Xayah_Base_Mat",
+			"texture": 2,
+			"show": true
+		}, 
+		{
+			"name": "Xayah_Crest_Mat",
+			"texture": 5,
+			"show": true
+		}, 
+		{
+			"name": "Xayah_Base_Weapon_Mat",
+			"texture": 5,
+			"show": true
+		}, 
+		{
+			"name": "Xayah_Familiar_mat",
+			"texture": 0,
+			"show": false
+		}, 
+		{
+			"name": "Xayah_Base_Wing_Mat",
+			"texture": 7,
+			"show": true
+		}, 
+		{
+			"name": "Ult_Wing_Mat",
+			"texture": 6,
+			"show": false
+		}, 
+		{
+			"name": "crest_Xayah_Base_Mat",
+			"texture": 0,
+			"show": false
+		}, 
+		{
+			"name": "Props_Joke_Mat",
+			"texture": 0,
+			"show": false
+		}, 
+		{
+			"name": "Xayah_Familiar_Joke_mat",
+			"texture": 0,
+			"show": false
+		}, 
+		{
+			"name": "DeathProp_Mat",
+			"texture": 0,
+			"show": false
+		}
+	]
+}
