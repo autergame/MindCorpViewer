@@ -1,6 +1,8 @@
 # MindCorpViewer
 League Of Legends Model Viewer
 
+# MOVED TO: https://github.com/autergame/MindCorpViewer-Rust
+
 ## Help From:
 * https://github.com/Querijn/LeagueModel
 * https://github.com/LoL-Fantome/LeagueToolkit
